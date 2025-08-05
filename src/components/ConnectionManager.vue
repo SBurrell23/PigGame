@@ -65,6 +65,19 @@ const getPlayerColorName = (index) => {
   return colors[index] || `Player ${index + 1}`
 }
 
+const getColorBorderClass = (colorName) => {
+  const colorMap = {
+    'Green': 'border-green-400',
+    'Blue': 'border-blue-400', 
+    'Purple': 'border-purple-400',
+    'Orange': 'border-orange-400',
+    'Red': 'border-red-400',
+    'Yellow': 'border-yellow-400',
+    'Pink': 'border-pink-400'
+  }
+  return colorMap[colorName] || 'border-gray-400'
+}
+
 // Broadcast lobby update to all connected players (host only)
 const broadcastLobbyUpdate = () => {
   if (!state.isHost) return
@@ -697,7 +710,7 @@ defineExpose({
           <!-- For hosts: show yourself + connected players -->
           <template v-if="state.isHost">
             <!-- Host player (yourself) -->
-            <div class="flex items-center justify-between p-3 bg-white rounded border-l-4 border-purple-400">
+            <div class="flex items-center justify-between p-3 bg-white rounded border-l-4" :class="getColorBorderClass('Green')">
               <div class="flex items-center">
                 <div class="text-lg mr-2">👑</div>
                 <div>
@@ -716,7 +729,8 @@ defineExpose({
             <div 
               v-for="(peerId, index) in connectedPeers" 
               :key="peerId"
-              class="flex items-center justify-between p-3 bg-white rounded border-l-4 border-blue-400"
+              class="flex items-center justify-between p-3 bg-white rounded border-l-4"
+              :class="getColorBorderClass(getPlayerColorName(index + 1))"
             >
               <div class="flex items-center">
                 <div class="text-lg mr-2">🎮</div>
@@ -747,7 +761,7 @@ defineExpose({
               v-for="player in allLobbyPlayers" 
               :key="player.peerId"
               class="flex items-center justify-between p-3 bg-white rounded border-l-4"
-              :class="player.isHost ? 'border-purple-400' : 'border-blue-400'"
+              :class="getColorBorderClass(player.name)"
             >
               <div class="flex items-center">
                 <div class="text-lg mr-2">{{ player.isHost ? '👑' : '🎮' }}</div>

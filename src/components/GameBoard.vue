@@ -149,6 +149,19 @@ const getColorName = (index) => {
   return colors[index] || `Player ${index + 1}`
 }
 
+const getColorBorderClass = (colorName) => {
+  const colorMap = {
+    'Green': 'border-green-400',
+    'Blue': 'border-blue-400', 
+    'Purple': 'border-purple-400',
+    'Orange': 'border-orange-400',
+    'Red': 'border-red-400',
+    'Yellow': 'border-yellow-400',
+    'Pink': 'border-pink-400'
+  }
+  return colorMap[colorName] || 'border-gray-400'
+}
+
 const showNotification = (message, type = 'info', duration = 3000) => {
   gameState.notification = { message, type }
   setTimeout(() => {
@@ -904,10 +917,9 @@ defineExpose({
           :key="player.id"
           class="flex items-center justify-between p-3 bg-white rounded border-l-4"
           :class="{
-            'border-green-400 bg-green-50': player.isCurrentPlayer && !gameState.gameEnded,
-            'border-purple-400': player.isHost,
-            'border-blue-400': !player.isHost && !player.isCurrentPlayer,
-            'border-yellow-400 bg-yellow-50': gameState.winner && player.id === gameState.winner.id
+            'bg-green-50': player.isCurrentPlayer && !gameState.gameEnded,
+            'bg-yellow-50': gameState.winner && player.id === gameState.winner.id,
+            [getColorBorderClass(player.name)]: true
           }"
         >
           <div class="flex items-center">
