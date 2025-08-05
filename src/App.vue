@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import ConnectionManager from './components/ConnectionManager.vue'
 import GameBoard from './components/GameBoard.vue'
+import GameRules from './components/GameRules.vue'
 import { useGameConnection } from './composables/useGameConnection.js'
 
 // Game connection composable
@@ -242,26 +243,7 @@ onMounted(() => {
           
           <!-- Game Rules Card -->
           <div class="mt-8">
-            <div class="bg-white rounded-lg shadow-md p-6">
-              <div class="space-y-4">
-                <div class="p-4 bg-blue-50 border border-blue-200 rounded">
-                  <h4 class="text-sm font-semibold text-blue-900 mb-2">How to Play:</h4>
-                  <ul class="text-sm text-blue-800 space-y-1">
-                    <li>• Roll the dice to accumulate points</li>
-                    <li>• First player to reach 100 points wins</li>
-                    <li>• Rolling a 1 loses your turn and current points</li>
-                    <li>• You can "hold" to bank your points</li>
-                  </ul>
-                </div>
-                
-                <div class="p-4 bg-green-50 border border-green-200 rounded">
-                  <h4 class="text-sm font-semibold text-green-900 mb-2">Connection Status:</h4>
-                  <p class="text-sm text-green-800">
-                    Use the Connection Manager to connect with other players and start your game!
-                  </p>
-                </div>
-              </div>
-            </div>
+            <GameRules />
           </div>
           
         </div>

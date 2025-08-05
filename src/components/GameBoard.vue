@@ -1,6 +1,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import Dice from './Dice.vue'
+import GameRules from './GameRules.vue'
 
 // Props
 const props = defineProps({
@@ -832,6 +833,13 @@ const handleGameAction = (action) => {
       if (props.isHost) {
         console.log('Host received REQUEST_PIG_OUT from:', action.playerId)
         
+        // Update host's local game state FIRST
+        gameState.dice = action.dice
+        gameState.currentTurnScore = 0
+        gameState.isTurnEnding = true
+        gameState.isPiggedOut = true // Show pig out indicator for host too
+        gameState.lastAction = 'pigout'
+        
         // Broadcast the pig out to everyone (including the requester)
         broadcastGameAction({
           type: 'PIG_OUT',
@@ -839,12 +847,6 @@ const handleGameAction = (action) => {
           playerName: action.playerName,
           dice: action.dice
         })
-        
-        // Update host's local game state
-        gameState.dice = action.dice
-        gameState.currentTurnScore = 0
-        gameState.isTurnEnding = true
-        gameState.lastAction = 'pigout'
         
         const playerName = getPlayerName(action.playerId)
         showNotification(`💥 ${playerName} rolled a 1! Pig out! Turn lost! (via host)`, 'error', 3500)
@@ -1133,38 +1135,26 @@ defineExpose({
 
       <!-- Game Rules (Collapsed by default) -->
       <div class="mb-6">
-        <details class="bg-white rounded-xl shadow-md overflow-hidden">
-          <summary class="p-4 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors font-semibold text-gray-700">
-            📖 How to Play
-          </summary>
-          <div class="p-4 bg-white">
-            <ul class="text-sm text-gray-600 space-y-2">
-              <li class="flex items-center"><span class="text-green-500 mr-2">🎲</span> Roll the dice to accumulate points for your turn.</li>
-              <li class="flex items-center"><span class="text-yellow-500 mr-2">💰</span> "Bank Points" to save your turn points and pass to next player.</li>
-              <li class="flex items-center"><span class="text-red-500 mr-2">🐷</span> Rolling a 1 when you have turn points will end your turn and cause you to lose them!</li>
-              <li class="flex items-center"><span class="text-purple-500 mr-2">🏆</span> First player to reach 100 points wins!</li>
-            </ul>
-          </div>
-        </details>
+        <GameRules />
       </div>
 
-      <!-- Debug/Admin Actions -->
-      <div v-if="isHost && !gameState.gameEnded" class="text-center">
-        <button 
-          @click="forceSync"
-          class="px-4 py-2 bg-orange-500 text-white text-sm rounded-lg hover:bg-orange-600 transition-colors shadow-md"
-        >
-          🔄 Force Sync (Debug)
-        </button>
-      </div>
-
-      <!-- Debug Info (temporary) -->
-      <div class="mt-6 opacity-50 hover:opacity-100 transition-opacity">
+      <!-- Debug Info (hidden by default) -->
+      <div v-if="false" class="mt-6 opacity-50 hover:opacity-100 transition-opacity">
         <details class="bg-yellow-50 rounded-lg overflow-hidden">
           <summary class="p-3 bg-yellow-100 cursor-pointer text-xs font-semibold text-yellow-900">
-            🐛 Debug Info
+            � Debug Info
           </summary>
-          <div class="p-3 bg-yellow-50">
+          <div class="p-3 bg-yellow-50 space-y-3">
+            <!-- Force Sync Debug Button -->
+            <div v-if="isHost && !gameState.gameEnded" class="text-center">
+              <button 
+                @click="forceSync"
+                class="px-4 py-2 bg-orange-500 text-white text-sm rounded-lg hover:bg-orange-600 transition-colors shadow-md"
+              >
+                � Force Sync (Debug)
+              </button>
+            </div>
+            <!-- Debug Data -->
             <pre class="text-xs text-yellow-800 overflow-auto">{{ JSON.stringify(debugInfo, null, 2) }}</pre>
           </div>
         </details>
