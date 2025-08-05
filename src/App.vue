@@ -17,6 +17,7 @@ const connectionManager = ref(null)
 const gameBoardRef = ref(null)
 const currentView = ref('lobby') // 'lobby' or 'game'
 const gameData = ref(null)
+const isDisconnecting = ref(false) // Flag to prevent lobby flash during disconnection
 
 // Connection event handlers
 const onPeerReady = (event) => {
@@ -45,18 +46,39 @@ const onDataReceived = (event) => {
   
   // Handle special game messages
   if (event.data.type === 'HOST_LEFT_GAME') {
-    // Host left during game - return to lobby
-    console.log('Host left game, returning to lobby')
+    // Host left - disconnect completely and return to front page
+    console.log('Host left game, disconnecting completely')
+    
+    // Set disconnecting flag immediately to prevent lobby flash
+    isDisconnecting.value = true
+    
+    // Disconnect completely
+    if (connectionManager.value && connectionManager.value.disconnect) {
+      connectionManager.value.disconnect()
+    }
+    
+    // Return to lobby view (which will show connection screen since we're disconnected)
     currentView.value = 'lobby'
     gameData.value = null
-    if (connectionManager.value && connectionManager.value.resetGameState) {
-      connectionManager.value.resetGameState()
-    }
+    
+    // Reset disconnecting flag after a brief delay
+    setTimeout(() => {
+      isDisconnecting.value = false
+    }, 200)
     return
   }
   
   if (event.data.type === 'PLAYER_DISCONNECTED') {
     // Player disconnected during game
+    if (currentView.value === 'game' && gameBoardRef.value && gameBoardRef.value.handlePlayerDisconnected) {
+      gameBoardRef.value.handlePlayerDisconnected(event.data.playerId)
+    }
+    return
+  }
+  
+  if (event.data.type === 'PLAYER_LEFT_GAME') {
+    // Player voluntarily left the game (clicked Leave Game button)
+    console.log('Player left game:', event.data.playerId)
     if (currentView.value === 'game' && gameBoardRef.value && gameBoardRef.value.handlePlayerDisconnected) {
       gameBoardRef.value.handlePlayerDisconnected(event.data.playerId)
     }
@@ -86,29 +108,67 @@ const onLeaveGame = () => {
   
   // If host is leaving, end game for everyone
   if (connectionManager.value?.state?.isHost && connectionManager.value.endGameAndDisconnectAll) {
+    // Set disconnecting flag immediately for host too
+    isDisconnecting.value = true
+    
     connectionManager.value.endGameAndDisconnectAll()
-  }
-  
-  currentView.value = 'lobby'
-  gameData.value = null
-  
-  // Reset game state in connection manager
-  if (connectionManager.value && connectionManager.value.resetGameState) {
-    connectionManager.value.resetGameState()
+    
+    // Reset to lobby for host
+    currentView.value = 'lobby'
+    gameData.value = null
+    
+    // Reset game state in connection manager
+    if (connectionManager.value && connectionManager.value.resetGameState) {
+      connectionManager.value.resetGameState()
+    }
+    
+    // Reset disconnecting flag after a brief delay
+    setTimeout(() => {
+      isDisconnecting.value = false
+    }, 200)
+  } else {
+    // Non-host player leaving - notify other players and disconnect completely
+    console.log('Non-host player leaving game - disconnecting completely')
+    
+    // Notify other players that this player is leaving the game
+    if (connectionManager.value && connectionManager.value.broadcast) {
+      connectionManager.value.broadcast({
+        type: 'PLAYER_LEFT_GAME',
+        playerId: connectionManager.value.state.peerId,
+        timestamp: Date.now()
+      })
+    }
+    
+    // Disconnect completely and return to connection screen
+    if (connectionManager.value && connectionManager.value.disconnect) {
+      connectionManager.value.disconnect()
+    }
+    
+    // Reset to lobby view (which will show the connection screen since player is disconnected)
+    currentView.value = 'lobby'
+    gameData.value = null
   }
 }
 
 const onHostDisconnectedDuringGame = () => {
-  console.log('Host disconnected during game')
+  console.log('Host disconnected during game - disconnecting completely')
   
-  // If we're in game, let GameBoard handle it gracefully
-  if (currentView.value === 'game' && gameBoardRef.value && gameBoardRef.value.handleHostDisconnected) {
-    gameBoardRef.value.handleHostDisconnected()
-  } else {
-    // Otherwise just return to lobby immediately
-    currentView.value = 'lobby'
-    gameData.value = null
+  // Set disconnecting flag immediately to prevent lobby flash
+  isDisconnecting.value = true
+  
+  // Host disconnected unexpectedly - disconnect completely
+  if (connectionManager.value && connectionManager.value.disconnect) {
+    connectionManager.value.disconnect()
   }
+  
+  // Return to lobby view (which will show connection screen since we're disconnected)
+  currentView.value = 'lobby'
+  gameData.value = null
+  
+  // Reset disconnecting flag after a brief delay
+  setTimeout(() => {
+    isDisconnecting.value = false
+  }, 200)
 }
 
 const onGameEnded = () => {
@@ -151,11 +211,14 @@ onMounted(() => {
     <main class="py-10">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
-        <!-- ConnectionManager - always rendered -->
+        <!-- ConnectionManager - always rendered to maintain peer connections -->
         <ConnectionManager 
           ref="connectionManager"
           :player-name="'Player 1'"
-          :style="{ display: currentView === 'game' ? 'none' : 'block' }"
+          :style="{ 
+            display: currentView === 'game' ? 'none' : 'block',
+            visibility: isDisconnecting ? 'hidden' : 'visible'
+          }"
           @peer-ready="onPeerReady"
           @peer-connected="onPeerConnected" 
           @peer-disconnected="onPeerDisconnected"
@@ -165,42 +228,38 @@ onMounted(() => {
           @host-disconnected-during-game="onHostDisconnectedDuringGame"
         />
         
-        <!-- Lobby View -->
-        <div v-if="currentView === 'lobby'" class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          
-          <!-- Left Column - Space for Connection Manager (rendered above) -->
-          <div class="space-y-6">
-            <!-- Connection Manager area - rendered above with absolute positioning -->
+        <!-- Disconnecting State -->
+        <div v-if="isDisconnecting" class="max-w-md mx-auto mt-8">
+          <div class="bg-white rounded-lg shadow-md p-8 text-center">
+            <div class="text-4xl mb-4">🔄</div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">Disconnecting...</h3>
+            <p class="text-gray-600">Returning to connection screen</p>
           </div>
-
-          <!-- Game Area -->
-          <div class="bg-white rounded-lg shadow-md p-6">
-            <h3 class="text-lg font-semibold text-gray-900 mb-4">Pig Game</h3>
-            
-            <div class="text-center py-8">
-              <div class="text-6xl mb-4">🎲</div>
-              <h4 class="text-xl font-semibold text-gray-800 mb-2">Ready to Play!</h4>
-              <p class="text-gray-600 mb-6">
-                Connect with other players to start a multiplayer Pig Game session.
-              </p>
-            </div>
-            
-            <div class="space-y-4">
-              <div class="p-4 bg-blue-50 border border-blue-200 rounded">
-                <h4 class="text-sm font-semibold text-blue-900 mb-2">How to Play:</h4>
-                <ul class="text-sm text-blue-800 space-y-1">
-                  <li>• Roll the dice to accumulate points</li>
-                  <li>• First player to reach 100 points wins</li>
-                  <li>• Rolling a 1 loses your turn and current points</li>
-                  <li>• You can "hold" to bank your points</li>
-                </ul>
-              </div>
-              
-              <div class="p-4 bg-green-50 border border-green-200 rounded">
-                <h4 class="text-sm font-semibold text-green-900 mb-2">Connection Status:</h4>
-                <p class="text-sm text-green-800">
-                  Use the Connection Manager to connect with other players and start your game!
-                </p>
+        </div>
+        
+        <!-- Lobby View -->
+        <div v-else-if="currentView === 'lobby'" class="max-w-4xl mx-auto">
+          
+          <!-- Game Rules Card -->
+          <div class="mt-8">
+            <div class="bg-white rounded-lg shadow-md p-6">
+              <div class="space-y-4">
+                <div class="p-4 bg-blue-50 border border-blue-200 rounded">
+                  <h4 class="text-sm font-semibold text-blue-900 mb-2">How to Play:</h4>
+                  <ul class="text-sm text-blue-800 space-y-1">
+                    <li>• Roll the dice to accumulate points</li>
+                    <li>• First player to reach 100 points wins</li>
+                    <li>• Rolling a 1 loses your turn and current points</li>
+                    <li>• You can "hold" to bank your points</li>
+                  </ul>
+                </div>
+                
+                <div class="p-4 bg-green-50 border border-green-200 rounded">
+                  <h4 class="text-sm font-semibold text-green-900 mb-2">Connection Status:</h4>
+                  <p class="text-sm text-green-800">
+                    Use the Connection Manager to connect with other players and start your game!
+                  </p>
+                </div>
               </div>
             </div>
           </div>

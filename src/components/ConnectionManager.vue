@@ -374,19 +374,12 @@ const handleConnection = (conn) => {
         })
       } else if (conn.peer === state.lobbyId) {
         // Non-host player - check if host disconnected
-        console.log('Host disconnected during game - ending game for all players')
+        console.log('Host disconnected unexpectedly - disconnecting completely')
         
-        // Host left during game - reset everything
-        gameInProgress.value = false
-        state.lobbyId = null
-        state.isInLobby = false
-        state.isHost = false
-        lobbyMode.value = 'join'
-        joinGameId.value = ''
-        allLobbyPlayers.value = []
-        
-        // Emit event to return to lobby
+        // Emit event to trigger complete disconnection
         emit('host-disconnected-during-game')
+        
+        // Don't reset state here - let the App.vue handler call disconnect() completely
       }
     }
     
@@ -534,17 +527,17 @@ const endGameAndDisconnectAll = () => {
   // Broadcast game end message to all players
   broadcast({
     type: 'HOST_LEFT_GAME',
-    message: 'Host has left the game. Returning to lobby.',
+    message: 'Host has left the game. Disconnecting all players.',
     timestamp: Date.now()
   })
   
   // Reset game state
   gameInProgress.value = false
   
-  // Disconnect all players
+  // Disconnect all players immediately (but give a tiny delay for message to send)
   setTimeout(() => {
     disconnect()
-  }, 1000) // Small delay to ensure message is sent
+  }, 100) // Much shorter delay to minimize lobby flash
 }
 
 // Lifecycle hooks
