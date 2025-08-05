@@ -80,10 +80,10 @@ onMounted(() => {
       players.value = allPlayers.map((player, index) => ({
         id: player.peerId,
         name: player.peerId === props.connectionManager.state.peerId 
-          ? props.playerName 
+          ? getColorName(index) // Use color name for self too
           : player.isHost 
-            ? player.name
-            : `Player ${getColorName(index)}`,
+            ? getColorName(0) // Host is always Green
+            : getColorName(index),
         isHost: player.isHost,
         score: 0,
         isCurrentPlayer: player.isHost // Host always starts first
@@ -94,7 +94,7 @@ onMounted(() => {
       players.value = [
         {
           id: props.connectionManager.state.peerId,
-          name: props.playerName,
+          name: props.isHost ? 'Green' : 'Blue', // Host is Green, first non-host is Blue
           isHost: props.isHost,
           score: 0,
           isCurrentPlayer: props.isHost // Current player only if host
@@ -106,7 +106,7 @@ onMounted(() => {
         props.connectionManager.connectedPeers.value.forEach((peerId, index) => {
           players.value.push({
             id: peerId,
-            name: `Player ${getColorName(index + 1)}`, // +1 because host is at index 0
+            name: getColorName(index + 1), // +1 because host is at index 0
             isHost: false,
             score: 0,
             isCurrentPlayer: false
@@ -144,7 +144,8 @@ onMounted(() => {
 
 // Utility functions
 const getColorName = (index) => {
-  const colors = ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange', 'Pink', 'Cyan']
+  // Host is always Green (index 0), then Blue, Purple, Orange, Red, Yellow, Pink
+  const colors = ['Green', 'Blue', 'Purple', 'Orange', 'Red', 'Yellow', 'Pink']
   return colors[index] || `Player ${index + 1}`
 }
 
@@ -158,7 +159,7 @@ const showNotification = (message, type = 'info', duration = 3000) => {
 const getPlayerName = (playerId) => {
   const player = players.value.find(p => p.id === playerId)
   if (!player) return 'Unknown Player'
-  if (player.id === props.connectionManager.state.peerId) return `You (${props.playerName})`
+  if (player.id === props.connectionManager.state.peerId) return `You (${player.name})`
   return player.name
 }
 
@@ -917,7 +918,7 @@ defineExpose({
             </div>
             <div>
               <div class="text-sm font-medium text-gray-900">
-                {{ player.id === connectionManager?.state?.peerId ? `You (${playerName})` : player.name }}
+                {{ player.id === connectionManager?.state?.peerId ? `You (${player.name})` : player.name }}
               </div>
               <div class="text-xs text-gray-500">{{ player.id }}</div>
             </div>

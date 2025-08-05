@@ -58,6 +58,13 @@ const generateGameId = () => {
   return Math.random().toString(36).substr(2, 8).toUpperCase()
 }
 
+// Get color name for player based on join order
+const getPlayerColorName = (index) => {
+  // Host is always Green (index 0), then Blue, Purple, Orange, Red, Yellow, Pink
+  const colors = ['Green', 'Blue', 'Purple', 'Orange', 'Red', 'Yellow', 'Pink']
+  return colors[index] || `Player ${index + 1}`
+}
+
 // Broadcast lobby update to all connected players (host only)
 const broadcastLobbyUpdate = () => {
   if (!state.isHost) return
@@ -67,12 +74,12 @@ const broadcastLobbyUpdate = () => {
     players: [
       {
         peerId: state.peerId,
-        name: props.playerName,
+        name: getPlayerColorName(0), // Host is always Green
         isHost: true
       },
-      ...connectedPeers.value.map(peerId => ({
+      ...connectedPeers.value.map((peerId, index) => ({
         peerId,
-        name: 'Player', // We don't have player names from other peers yet
+        name: getPlayerColorName(index + 1), // Assign colors based on join order
         isHost: false
       }))
     ]
@@ -189,6 +196,15 @@ const initializePeer = (customId = null) => {
       if (state.isHost && state.lobbyId && id === state.lobbyId) {
         console.log('Lobby created successfully:', id)
         state.isInLobby = true
+        
+        // Initialize host's lobby data with their color name
+        allLobbyPlayers.value = [
+          {
+            peerId: state.peerId,
+            name: getPlayerColorName(0), // Host is always Green
+            isHost: true
+          }
+        ]
       }
       // If we're joining, try to connect to the host
       else if (!state.isHost && state.lobbyId) {
@@ -686,7 +702,7 @@ defineExpose({
                 <div class="text-lg mr-2">👑</div>
                 <div>
                   <div class="text-sm font-medium text-gray-900">
-                    You ({{ props.playerName }})
+                    You (Green)
                   </div>
                   <code class="text-xs text-gray-500">{{ state.peerId }}</code>
                 </div>
@@ -698,7 +714,7 @@ defineExpose({
 
             <!-- Connected players -->
             <div 
-              v-for="peerId in connectedPeers" 
+              v-for="(peerId, index) in connectedPeers" 
               :key="peerId"
               class="flex items-center justify-between p-3 bg-white rounded border-l-4 border-blue-400"
             >
@@ -706,7 +722,7 @@ defineExpose({
                 <div class="text-lg mr-2">🎮</div>
                 <div>
                   <div class="text-sm font-medium text-gray-900">
-                    Player
+                    {{ getPlayerColorName(index + 1) }}
                   </div>
                   <code class="text-xs text-gray-500">{{ peerId }}</code>
                 </div>
@@ -737,7 +753,7 @@ defineExpose({
                 <div class="text-lg mr-2">{{ player.isHost ? '👑' : '🎮' }}</div>
                 <div>
                   <div class="text-sm font-medium text-gray-900">
-                    {{ player.peerId === state.peerId ? `You (${props.playerName})` : player.name }}
+                    {{ player.peerId === state.peerId ? `You (${player.name})` : player.name }}
                   </div>
                   <code class="text-xs text-gray-500">{{ player.peerId }}</code>
                 </div>
