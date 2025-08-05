@@ -986,7 +986,7 @@ defineExpose({
       <div class="mb-8">
         <div class="bg-white rounded-2xl shadow-xl p-8 text-center">
           <!-- Dice Component -->
-          <div class="mb-6">
+          <div class="">
             <Dice 
               :value="gameState.dice"
               :is-rolling="gameState.isRolling"
@@ -997,7 +997,7 @@ defineExpose({
           </div>
           
           <!-- Action Buttons -->
-          <div class="flex flex-col sm:flex-row gap-4 justify-center items-center" v-if="!gameState.gameEnded">
+          <div class="flex flex-col sm:flex-row gap-4 justify-center items-center mt-6" v-if="!gameState.gameEnded && isMyTurn">
             <button 
               @click="rollDice"
               :disabled="!canRoll"

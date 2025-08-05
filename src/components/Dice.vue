@@ -95,7 +95,7 @@ onMounted(() => {
 
 <template>
   <div class="dice-container text-center">
-    <div class="mb-2">
+    <div class="">
       <div 
         :class="[
           'inline-block bg-white border-2 border-gray-300 rounded-lg shadow-lg flex items-center justify-center font-bold cursor-pointer transition-all duration-200',
@@ -121,14 +121,6 @@ onMounted(() => {
           </div>
         </div>
       </div>
-    </div>
-    
-    <!-- Status text -->
-    <div v-if="isRolling" class="text-sm text-gray-600 animate-pulse">
-      Rolling...
-    </div>
-    <div v-else-if="!disabled && size === 'large'" class="text-sm text-gray-500">
-      Click to roll
     </div>
   </div>
 </template>
