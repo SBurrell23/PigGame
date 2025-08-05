@@ -1,5 +1,6 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
+import Dice from './Dice.vue'
 
 // Props
 const props = defineProps({
@@ -244,85 +245,113 @@ const rollDice = () => {
   gameState.isRolling = true
   gameState.lastAction = 'rolling'
   
-  // Show rolling notification
-  showNotification(`🎲 ${getPlayerName(props.connectionManager.state.peerId)} is rolling...`, 'info', 2000)
+  // Broadcast dice rolling start to other players
+  const playerName = getPlayerName(props.connectionManager.state.peerId)
   
-  // Animate dice roll
-  let rollCount = 0
-  const rollInterval = setInterval(() => {
-    gameState.dice = Math.floor(Math.random() * 6) + 1
-    rollCount++
+  // Send rolling start event using host-relay pattern
+  if (props.isHost) {
+    broadcastGameAction({
+      type: 'DICE_ROLLING_START',
+      playerId: props.connectionManager.state.peerId,
+      playerName: playerName
+    })
+  } else {
+    // Non-host requests host to broadcast
+    broadcastGameAction({
+      type: 'REQUEST_DICE_ROLLING_START',
+      playerId: props.connectionManager.state.peerId,
+      playerName: playerName
+    })
+  }
+  
+  // Show rolling notification
+  showNotification(`🎲 ${playerName} is rolling...`, 'info', 2000)
+  
+  // Animate dice roll (longer animation for better effect)
+  setTimeout(() => {
+    gameState.isRolling = false
     
-    if (rollCount >= 15) { // Longer animation for better effect
-      clearInterval(rollInterval)
-      gameState.isRolling = false
+    // Final dice value
+    const finalDice = Math.floor(Math.random() * 6) + 1
+    gameState.dice = finalDice
+    
+    // Broadcast dice result to other players
+    if (props.isHost) {
+      broadcastGameAction({
+        type: 'DICE_ROLLING_END',
+        playerId: props.connectionManager.state.peerId,
+        playerName: playerName,
+        dice: finalDice
+      })
+    } else {
+      // Non-host requests host to broadcast
+      broadcastGameAction({
+        type: 'REQUEST_DICE_ROLLING_END',
+        playerId: props.connectionManager.state.peerId,
+        playerName: playerName,
+        dice: finalDice
+      })
+    }
+    
+    // Handle dice result
+    if (finalDice === 1) {
+      // Pig out! Lose turn and current score
+      gameState.isTurnEnding = true // Immediately prevent further actions
+      gameState.currentTurnScore = 0
+      gameState.lastAction = 'pigout'
       
-      // Final dice value
-      const finalDice = Math.floor(Math.random() * 6) + 1
-      gameState.dice = finalDice
+      showNotification(`💥 ${playerName} rolled a 1! Pig out! Turn lost!`, 'error', 4000)
       
-      // Handle dice result
-      if (finalDice === 1) {
-        // Pig out! Lose turn and current score
-        gameState.isTurnEnding = true // Immediately prevent further actions
-        gameState.currentTurnScore = 0
-        gameState.lastAction = 'pigout'
-        
-        const playerName = getPlayerName(props.connectionManager.state.peerId)
-        showNotification(`💥 ${playerName} rolled a 1! Pig out! Turn lost!`, 'error', 4000)
-        
-        // Send pig out result to other players using host-relay pattern
-        if (props.isHost) {
-          broadcastGameAction({
-            type: 'PIG_OUT',
-            playerId: props.connectionManager.state.peerId,
-            playerName: props.playerName,
-            dice: finalDice
-          })
-        } else {
-          // Non-host requests host to broadcast
-          broadcastGameAction({
-            type: 'REQUEST_PIG_OUT',
-            playerId: props.connectionManager.state.peerId,
-            playerName: props.playerName,
-            dice: finalDice
-          })
-        }
-        
-        // End turn after a delay
-        setTimeout(() => {
-          nextPlayer()
-        }, 2000)
+      // Send pig out result to other players using host-relay pattern
+      if (props.isHost) {
+        broadcastGameAction({
+          type: 'PIG_OUT',
+          playerId: props.connectionManager.state.peerId,
+          playerName: props.playerName,
+          dice: finalDice
+        })
       } else {
-        // Successful roll - add to current turn score
-        gameState.currentTurnScore += finalDice
-        gameState.lastAction = 'rolled'
-        
-        const playerName = getPlayerName(props.connectionManager.state.peerId)
-        showNotification(`🎲 ${playerName} rolled a ${finalDice}! Turn score: ${gameState.currentTurnScore}`, 'success', 3000)
-        
-        // Send successful roll to other players using host-relay pattern
-        if (props.isHost) {
-          broadcastGameAction({
-            type: 'SUCCESSFUL_ROLL',
-            playerId: props.connectionManager.state.peerId,
-            playerName: props.playerName,
-            dice: finalDice,
-            turnScore: gameState.currentTurnScore
-          })
-        } else {
-          // Non-host requests host to broadcast
-          broadcastGameAction({
-            type: 'REQUEST_SUCCESSFUL_ROLL',
-            playerId: props.connectionManager.state.peerId,
-            playerName: props.playerName,
-            dice: finalDice,
-            turnScore: gameState.currentTurnScore
-          })
-        }
+        // Non-host requests host to broadcast
+        broadcastGameAction({
+          type: 'REQUEST_PIG_OUT',
+          playerId: props.connectionManager.state.peerId,
+          playerName: props.playerName,
+          dice: finalDice
+        })
+      }
+      
+      // End turn after a delay
+      setTimeout(() => {
+        nextPlayer()
+      }, 2000)
+    } else {
+      // Successful roll - add to current turn score
+      gameState.currentTurnScore += finalDice
+      gameState.lastAction = 'rolled'
+      
+      showNotification(`🎲 ${playerName} rolled a ${finalDice}! Turn score: ${gameState.currentTurnScore}`, 'success', 3000)
+      
+      // Send successful roll to other players using host-relay pattern
+      if (props.isHost) {
+        broadcastGameAction({
+          type: 'SUCCESSFUL_ROLL',
+          playerId: props.connectionManager.state.peerId,
+          playerName: props.playerName,
+          dice: finalDice,
+          turnScore: gameState.currentTurnScore
+        })
+      } else {
+        // Non-host requests host to broadcast
+        broadcastGameAction({
+          type: 'REQUEST_SUCCESSFUL_ROLL',
+          playerId: props.connectionManager.state.peerId,
+          playerName: props.playerName,
+          dice: finalDice,
+          turnScore: gameState.currentTurnScore
+        })
       }
     }
-  }, 80) // Slightly slower for better visual effect
+  }, 1500) // 1.5 second dice rolling animation
 }
 
 const holdScore = () => {
@@ -547,6 +576,66 @@ const handleGameAction = (action) => {
       }
       break
     
+    case 'DICE_ROLLING_START':
+      if (action.playerId !== props.connectionManager.state.peerId) {
+        gameState.isRolling = true
+        gameState.lastAction = 'rolling'
+        
+        const playerName = getPlayerName(action.playerId)
+        showNotification(`🎲 ${playerName} is rolling...`, 'info', 1500)
+      }
+      break
+      
+    case 'DICE_ROLLING_END':
+      if (action.playerId !== props.connectionManager.state.peerId) {
+        gameState.isRolling = false
+        gameState.dice = action.dice
+      }
+      break
+      
+    case 'REQUEST_DICE_ROLLING_START':
+      // Only host handles this request and broadcasts to everyone
+      if (props.isHost) {
+        console.log('Host received REQUEST_DICE_ROLLING_START from:', action.playerId)
+        
+        // Broadcast dice rolling start to everyone (including the requester)
+        broadcastGameAction({
+          type: 'DICE_ROLLING_START',
+          playerId: action.playerId,
+          playerName: action.playerName
+        })
+        
+        // Update host's local state
+        gameState.isRolling = true
+        gameState.lastAction = 'rolling'
+        
+        showNotification(`🎲 ${action.playerName} is rolling... (via host)`, 'info', 1500)
+      } else {
+        console.log('Non-host received REQUEST_DICE_ROLLING_START - ignoring')
+      }
+      break
+      
+    case 'REQUEST_DICE_ROLLING_END':
+      // Only host handles this request and broadcasts to everyone
+      if (props.isHost) {
+        console.log('Host received REQUEST_DICE_ROLLING_END from:', action.playerId)
+        
+        // Broadcast dice rolling end to everyone (including the requester)
+        broadcastGameAction({
+          type: 'DICE_ROLLING_END',
+          playerId: action.playerId,
+          playerName: action.playerName,
+          dice: action.dice
+        })
+        
+        // Update host's local state
+        gameState.isRolling = false
+        gameState.dice = action.dice
+      } else {
+        console.log('Non-host received REQUEST_DICE_ROLLING_END - ignoring')
+      }
+      break
+      
     case 'DICE_ROLL':
       gameState.dice = action.dice
       gameState.currentTurnScore = action.gameState.currentTurnScore
@@ -852,12 +941,13 @@ defineExpose({
     <!-- Dice Area -->
     <div class="mb-6 text-center">
       <div class="mb-4">
-        <div 
-          class="inline-block w-20 h-20 bg-white border-2 border-gray-300 rounded-lg shadow-lg flex items-center justify-center text-4xl font-bold"
-          :class="{ 'animate-pulse': gameState.isRolling }"
-        >
-          {{ gameState.dice }}
-        </div>
+        <Dice 
+          :value="gameState.dice"
+          :is-rolling="gameState.isRolling"
+          :disabled="!canRoll"
+          size="large"
+          @roll="rollDice"
+        />
       </div>
       
       <div class="space-x-4" v-if="!gameState.gameEnded">
