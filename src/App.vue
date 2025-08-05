@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import ConnectionManager from './components/ConnectionManager.vue'
+import GameBoard from './components/GameBoard.vue'
 import { useGameConnection } from './composables/useGameConnection.js'
 
 // Game connection composable
@@ -13,6 +14,8 @@ const {
 
 // Refs
 const connectionManager = ref(null)
+const currentView = ref('lobby') // 'lobby' or 'game'
+const gameData = ref(null)
 
 // Connection event handlers
 const onPeerReady = (event) => {
@@ -31,8 +34,29 @@ const onPeerDisconnected = (event) => {
 
 const onDataReceived = (event) => {
   console.log('Data received:', event)
-  // Handle game messages through our composable
+  
+  // Handle game actions if we're in game mode
+  if (currentView.value === 'game' && event.data.type === 'GAME_ACTION') {
+    // Forward to GameBoard component
+    const gameBoard = document.querySelector('.game-board')
+    if (gameBoard && gameBoard.__vueParentComponent) {
+      gameBoard.__vueParentComponent.exposed.handleGameAction(event.data.action)
+    }
+  }
+  
+  // Handle other game messages through our composable
   handleGameMessage(event.peerId, event.data)
+}
+
+const onGameStarted = (data) => {
+  console.log('Game started:', data)
+  gameData.value = data
+  currentView.value = 'game'
+}
+
+const onLeaveGame = () => {
+  currentView.value = 'lobby'
+  gameData.value = null
 }
 
 const onConnectionError = (error) => {
@@ -63,7 +87,9 @@ onMounted(() => {
 
     <main class="py-10">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        
+        <!-- Lobby View -->
+        <div v-if="currentView === 'lobby'" class="grid grid-cols-1 lg:grid-cols-2 gap-8">
           
           <!-- Connection Manager -->
           <div class="space-y-6">
@@ -75,6 +101,7 @@ onMounted(() => {
               @peer-disconnected="onPeerDisconnected"
               @data-received="onDataReceived"
               @connection-error="onConnectionError"
+              @game-started="onGameStarted"
             />
             
             <!-- Game State Display -->
@@ -155,6 +182,17 @@ onMounted(() => {
           </div>
           
         </div>
+
+        <!-- Game View -->
+        <div v-else-if="currentView === 'game'" class="max-w-4xl mx-auto">
+          <GameBoard 
+            :connection-manager="connectionManager"
+            :player-name="'Player 1'"
+            :is-host="connectionManager?.state?.isHost || false"
+            @leave-game="onLeaveGame"
+          />
+        </div>
+        
       </div>
     </main>
   </div>

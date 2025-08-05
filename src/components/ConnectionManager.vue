@@ -20,7 +20,8 @@ const emit = defineEmits([
   'peer-disconnected', 
   'data-received',
   'connection-error',
-  'peer-ready'
+  'peer-ready',
+  'game-started'
 ])
 
 // Reactive state
@@ -80,6 +81,34 @@ const broadcastLobbyUpdate = () => {
   
   // Update our own lobby players list
   allLobbyPlayers.value = lobbyData.players
+}
+
+// Start the game (host only)
+const startGame = () => {
+  if (!state.isHost) return
+  
+  const gameStartData = {
+    type: 'GAME_START',
+    players: [
+      {
+        peerId: state.peerId,
+        name: props.playerName,
+        isHost: true
+      },
+      ...connectedPeers.value.map(peerId => ({
+        peerId,
+        name: 'Player',
+        isHost: false
+      }))
+    ],
+    timestamp: Date.now()
+  }
+  
+  // Broadcast to all players
+  broadcast(gameStartData)
+  
+  // Emit event for this client
+  emit('game-started', gameStartData)
 }
 
 // Host a new game lobby
@@ -250,6 +279,13 @@ const handleConnection = (conn) => {
     if (data && data.type === 'LOBBY_UPDATE') {
       console.log('Lobby update received:', data.players)
       allLobbyPlayers.value = data.players
+      return
+    }
+    
+    // Handle game start message
+    if (data && data.type === 'GAME_START') {
+      console.log('Game start received:', data.players)
+      emit('game-started', data)
       return
     }
     
@@ -438,9 +474,11 @@ defineExpose({
   disconnectFromPeer,
   disconnect,
   getConnectionInfo,
+  startGame,
   // Reactive state access
   state: state,
-  connectedPeers: connectedPeers
+  connectedPeers: connectedPeers,
+  allLobbyPlayers: allLobbyPlayers
 })
 </script>
 
@@ -663,6 +701,7 @@ defineExpose({
           You have {{ connectedPeers.length }} player{{ connectedPeers.length === 1 ? '' : 's' }} in your lobby.
         </p>
         <button 
+          @click="startGame"
           class="w-full px-4 py-2 bg-green-500 text-white font-medium rounded hover:bg-green-600 transition-colors"
         >
           🚀 Start Game
