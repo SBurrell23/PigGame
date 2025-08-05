@@ -79,7 +79,11 @@ onMounted(() => {
       
       players.value = allPlayers.map((player, index) => ({
         id: player.peerId,
-        name: player.peerId === props.connectionManager.state.peerId ? props.playerName : player.name,
+        name: player.peerId === props.connectionManager.state.peerId 
+          ? props.playerName 
+          : player.isHost 
+            ? player.name
+            : `Player ${getColorName(index)}`,
         isHost: player.isHost,
         score: 0,
         isCurrentPlayer: player.isHost // Host always starts first
@@ -99,10 +103,10 @@ onMounted(() => {
       
       // Add connected peers
       if (props.connectionManager.connectedPeers?.value) {
-        props.connectionManager.connectedPeers.value.forEach(peerId => {
+        props.connectionManager.connectedPeers.value.forEach((peerId, index) => {
           players.value.push({
             id: peerId,
-            name: 'Player',
+            name: `Player ${getColorName(index + 1)}`, // +1 because host is at index 0
             isHost: false,
             score: 0,
             isCurrentPlayer: false
@@ -139,6 +143,11 @@ onMounted(() => {
 })
 
 // Utility functions
+const getColorName = (index) => {
+  const colors = ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange', 'Pink', 'Cyan']
+  return colors[index] || `Player ${index + 1}`
+}
+
 const showNotification = (message, type = 'info', duration = 3000) => {
   gameState.notification = { message, type }
   setTimeout(() => {
@@ -160,7 +169,16 @@ const currentPlayerData = computed(() => {
 
 const isMyTurn = computed(() => {
   const currentPlayer = currentPlayerData.value
-  return currentPlayer && currentPlayer.id === props.connectionManager?.state?.peerId
+  const result = currentPlayer && currentPlayer.id === props.connectionManager?.state?.peerId
+  
+  console.log('isMyTurn check:', {
+    currentPlayerData: currentPlayer,
+    myPeerId: props.connectionManager?.state?.peerId,
+    result: result,
+    currentPlayerIndex: gameState.currentPlayer
+  })
+  
+  return result
 })
 
 const canRoll = computed(() => {
@@ -187,7 +205,8 @@ const debugInfo = computed(() => {
       id: p.id, 
       name: p.name, 
       isCurrentPlayer: p.isCurrentPlayer, 
-      isHost: p.isHost 
+      isHost: p.isHost,
+      score: p.score // Add score to debug info
     })),
     // Safe connection manager state (avoiding circular references)
     connectionManagerState: props.connectionManager?.state ? {
@@ -195,8 +214,12 @@ const debugInfo = computed(() => {
       isHost: props.connectionManager.state.isHost,
       connectionStatus: props.connectionManager.state.connectionStatus
     } : null,
+    // Connection details
     allLobbyPlayersCount: props.connectionManager?.allLobbyPlayers?.value?.length || 0,
-    connectedPeersCount: props.connectionManager?.connectedPeers?.value?.length || 0
+    connectedPeersCount: props.connectionManager?.connectedPeers?.value?.length || 0,
+    connectedPeersList: props.connectionManager?.connectedPeers?.value || [],
+    // Last few actions received
+    lastAction: gameState.lastAction
   }
 })
 
@@ -234,13 +257,23 @@ const rollDice = () => {
         const playerName = getPlayerName(props.connectionManager.state.peerId)
         showNotification(`💥 ${playerName} rolled a 1! Pig out! Turn lost!`, 'error', 4000)
         
-        // Send pig out result to other players
-        broadcastGameAction({
-          type: 'PIG_OUT',
-          playerId: props.connectionManager.state.peerId,
-          playerName: props.playerName,
-          dice: finalDice
-        })
+        // Send pig out result to other players using host-relay pattern
+        if (props.isHost) {
+          broadcastGameAction({
+            type: 'PIG_OUT',
+            playerId: props.connectionManager.state.peerId,
+            playerName: props.playerName,
+            dice: finalDice
+          })
+        } else {
+          // Non-host requests host to broadcast
+          broadcastGameAction({
+            type: 'REQUEST_PIG_OUT',
+            playerId: props.connectionManager.state.peerId,
+            playerName: props.playerName,
+            dice: finalDice
+          })
+        }
         
         // End turn after a delay
         setTimeout(() => {
@@ -254,14 +287,25 @@ const rollDice = () => {
         const playerName = getPlayerName(props.connectionManager.state.peerId)
         showNotification(`🎲 ${playerName} rolled a ${finalDice}! Turn score: ${gameState.currentTurnScore}`, 'success', 3000)
         
-        // Send successful roll to other players
-        broadcastGameAction({
-          type: 'SUCCESSFUL_ROLL',
-          playerId: props.connectionManager.state.peerId,
-          playerName: props.playerName,
-          dice: finalDice,
-          turnScore: gameState.currentTurnScore
-        })
+        // Send successful roll to other players using host-relay pattern
+        if (props.isHost) {
+          broadcastGameAction({
+            type: 'SUCCESSFUL_ROLL',
+            playerId: props.connectionManager.state.peerId,
+            playerName: props.playerName,
+            dice: finalDice,
+            turnScore: gameState.currentTurnScore
+          })
+        } else {
+          // Non-host requests host to broadcast
+          broadcastGameAction({
+            type: 'REQUEST_SUCCESSFUL_ROLL',
+            playerId: props.connectionManager.state.peerId,
+            playerName: props.playerName,
+            dice: finalDice,
+            turnScore: gameState.currentTurnScore
+          })
+        }
       }
     }
   }, 80) // Slightly slower for better visual effect
@@ -300,15 +344,27 @@ const holdScore = () => {
     }
   }
   
-  // Send hold action to other players
-  broadcastGameAction({
-    type: 'HOLD_SCORE',
-    playerId: props.connectionManager.state.peerId,
-    playerName: props.playerName,
-    bankedScore: gameState.currentTurnScore,
-    newTotal: currentPlayer?.score || 0,
-    players: players.value
-  })
+  // Send hold action to other players using host-relay pattern
+  if (props.isHost) {
+    broadcastGameAction({
+      type: 'HOLD_SCORE',
+      playerId: props.connectionManager.state.peerId,
+      playerName: props.playerName,
+      bankedScore: gameState.currentTurnScore,
+      newTotal: currentPlayer?.score || 0,
+      players: players.value
+    })
+  } else {
+    // Non-host requests host to broadcast
+    broadcastGameAction({
+      type: 'REQUEST_HOLD_SCORE',
+      playerId: props.connectionManager.state.peerId,
+      playerName: props.playerName,
+      bankedScore: gameState.currentTurnScore,
+      newTotal: currentPlayer?.score || 0,
+      players: players.value
+    })
+  }
   
   gameState.lastAction = 'held'
   
@@ -321,6 +377,9 @@ const holdScore = () => {
 const nextPlayer = () => {
   if (gameState.gameEnded) return
   
+  console.log('nextPlayer called - current player before:', gameState.currentPlayer)
+  console.log('Players array:', players.value.map(p => ({ id: p.id, name: p.name })))
+  
   // Reset turn state
   gameState.currentTurnScore = 0
   gameState.isTurnEnding = false
@@ -329,6 +388,9 @@ const nextPlayer = () => {
   players.value[gameState.currentPlayer].isCurrentPlayer = false
   gameState.currentPlayer = (gameState.currentPlayer + 1) % players.value.length
   players.value[gameState.currentPlayer].isCurrentPlayer = true
+  
+  console.log('nextPlayer - new current player index:', gameState.currentPlayer)
+  console.log('nextPlayer - new current player:', players.value[gameState.currentPlayer])
   
   // If we're back to player 0, increment round
   if (gameState.currentPlayer === 0) {
@@ -341,24 +403,58 @@ const nextPlayer = () => {
   // Show turn notification
   showNotification(`🎯 It's ${playerName}'s turn!`, 'info', 3000)
   
-  broadcastGameAction({
-    type: 'NEXT_PLAYER',
+  console.log('Broadcasting NEXT_PLAYER with:', {
     currentPlayer: gameState.currentPlayer,
     currentRound: gameState.currentRound,
-    players: players.value
+    playersCount: players.value.length,
+    isHost: props.isHost
   })
+  
+  // WORKAROUND: Only host broadcasts NEXT_PLAYER directly
+  // Non-host players request the host to broadcast
+  if (props.isHost) {
+    broadcastGameAction({
+      type: 'NEXT_PLAYER',
+      currentPlayer: gameState.currentPlayer,
+      currentRound: gameState.currentRound,
+      players: players.value
+    })
+  } else {
+    // Send a request to host to broadcast next player
+    broadcastGameAction({
+      type: 'REQUEST_NEXT_PLAYER',
+      requestedCurrentPlayer: gameState.currentPlayer,
+      requestedCurrentRound: gameState.currentRound,
+      requestingPlayerId: props.connectionManager.state.peerId,
+      players: players.value
+    })
+  }
   
   gameState.lastAction = 'turn_change'
 }
 
 const broadcastGameAction = (action) => {
+  console.log('Broadcasting action:', action.type, 'to all peers')
   if (props.connectionManager) {
     props.connectionManager.broadcast({
       type: 'GAME_ACTION',
       action: action,
       timestamp: Date.now()
     })
+  } else {
+    console.error('No connection manager available for broadcasting')
   }
+}
+
+const forceSync = () => {
+  console.log('Host forcing game sync to all players')
+  broadcastGameAction({
+    type: 'GAME_SYNC',
+    currentPlayer: gameState.currentPlayer,
+    currentRound: gameState.currentRound,
+    players: players.value
+  })
+  showNotification('🔄 Forced sync sent to all players', 'info', 2000)
 }
 
 const newGame = () => {
@@ -390,11 +486,16 @@ const leaveGame = () => {
 
 // Handle incoming game actions from other players
 const handleGameAction = (action) => {
+  console.log(`[${props.connectionManager?.state?.peerId}] Received game action:`, action.type, action)
+  
   switch (action.type) {
     case 'GAME_SYNC':
+      console.log('Received GAME_SYNC - syncing state from host')
       // Synchronize game state from host
       gameState.currentPlayer = action.currentPlayer
       gameState.currentRound = action.currentRound
+      gameState.currentTurnScore = 0
+      gameState.isTurnEnding = false
       
       // Update player current status
       players.value.forEach((player, index) => {
@@ -403,6 +504,10 @@ const handleGameAction = (action) => {
       
       const syncPlayerName = getPlayerName(players.value[action.currentPlayer]?.id)
       showNotification(`🔄 Game synchronized! ${syncPlayerName}'s turn`, 'info', 2000)
+      console.log('Post-sync state:', {
+        currentPlayer: gameState.currentPlayer,
+        currentPlayerData: players.value[gameState.currentPlayer]
+      })
       break
       
     case 'SUCCESSFUL_ROLL':
@@ -453,19 +558,142 @@ const handleGameAction = (action) => {
       break
       
     case 'NEXT_PLAYER':
-      if (action.currentPlayer !== gameState.currentPlayer) {
-        players.value.forEach((player, index) => {
-          player.isCurrentPlayer = index === action.currentPlayer
-        })
-        gameState.currentPlayer = action.currentPlayer
-        gameState.currentRound = action.currentRound
+      console.log('Received NEXT_PLAYER action:', action)
+      console.log('Current gameState.currentPlayer:', gameState.currentPlayer)
+      console.log('Action currentPlayer:', action.currentPlayer)
+      console.log('Players array length:', players.value.length)
+      
+      // Always update - remove the condition check that was causing sync issues
+      players.value.forEach((player, index) => {
+        player.isCurrentPlayer = index === action.currentPlayer
+      })
+      gameState.currentPlayer = action.currentPlayer
+      gameState.currentRound = action.currentRound
+      gameState.currentTurnScore = 0
+      gameState.isTurnEnding = false
+      gameState.lastAction = 'turn_change'
+      
+      const newCurrentPlayer = players.value[action.currentPlayer]
+      console.log('New current player:', newCurrentPlayer)
+      const playerName = getPlayerName(newCurrentPlayer?.id)
+      showNotification(`🎯 It's ${playerName}'s turn!`, 'info', 2500)
+      break
+      
+    case 'REQUEST_NEXT_PLAYER':
+      // Only host handles this request and broadcasts to everyone
+      if (props.isHost) {
+        console.log('Host received REQUEST_NEXT_PLAYER from:', action.requestingPlayerId)
+        console.log('Requested player index:', action.requestedCurrentPlayer)
+        
+        // Update host's state to match the request
+        gameState.currentPlayer = action.requestedCurrentPlayer
+        gameState.currentRound = action.requestedCurrentRound
         gameState.currentTurnScore = 0
         gameState.isTurnEnding = false
-        gameState.lastAction = 'turn_change'
         
-        const newCurrentPlayer = players.value[action.currentPlayer]
-        const playerName = getPlayerName(newCurrentPlayer.id)
-        showNotification(`🎯 It's ${playerName}'s turn!`, 'info', 2500)
+        // Update player current status
+        players.value.forEach((player, index) => {
+          player.isCurrentPlayer = index === action.requestedCurrentPlayer
+        })
+        
+        // Now broadcast to everyone (including the requester)
+        broadcastGameAction({
+          type: 'NEXT_PLAYER',
+          currentPlayer: action.requestedCurrentPlayer,
+          currentRound: action.requestedCurrentRound,
+          players: action.players
+        })
+        
+        const newCurrentPlayer = players.value[action.requestedCurrentPlayer]
+        const playerName = getPlayerName(newCurrentPlayer?.id)
+        showNotification(`🎯 It's ${playerName}'s turn! (via host)`, 'info', 2500)
+      } else {
+        console.log('Non-host received REQUEST_NEXT_PLAYER - ignoring')
+      }
+      break
+      
+    case 'REQUEST_SUCCESSFUL_ROLL':
+      // Only host handles this request and broadcasts to everyone
+      if (props.isHost) {
+        console.log('Host received REQUEST_SUCCESSFUL_ROLL from:', action.playerId)
+        
+        // Broadcast the successful roll to everyone (including the requester)
+        broadcastGameAction({
+          type: 'SUCCESSFUL_ROLL',
+          playerId: action.playerId,
+          playerName: action.playerName,
+          dice: action.dice,
+          turnScore: action.turnScore
+        })
+        
+        // Also update host's local state
+        gameState.dice = action.dice
+        gameState.currentTurnScore = action.turnScore
+        gameState.lastAction = 'rolled'
+        
+        const playerName = getPlayerName(action.playerId)
+        showNotification(`🎲 ${playerName} rolled a ${action.dice}! Turn score: ${action.turnScore} (via host)`, 'info', 2500)
+      } else {
+        console.log('Non-host received REQUEST_SUCCESSFUL_ROLL - ignoring')
+      }
+      break
+      
+    case 'REQUEST_HOLD_SCORE':
+      // Only host handles this request and broadcasts to everyone
+      if (props.isHost) {
+        console.log('Host received REQUEST_HOLD_SCORE from:', action.playerId)
+        
+        // Update the player's score in host's state
+        const holdingPlayer = players.value.find(p => p.id === action.playerId)
+        if (holdingPlayer) {
+          holdingPlayer.score = action.newTotal
+        }
+        
+        // Broadcast the hold score to everyone (including the requester)
+        broadcastGameAction({
+          type: 'HOLD_SCORE',
+          playerId: action.playerId,
+          playerName: action.playerName,
+          bankedScore: action.bankedScore,
+          newTotal: action.newTotal,
+          players: players.value
+        })
+        
+        // Update host's local game state
+        gameState.currentTurnScore = 0
+        gameState.isTurnEnding = false
+        gameState.lastAction = 'held'
+        
+        const playerName = getPlayerName(action.playerId)
+        showNotification(`💰 ${playerName} banked ${action.bankedScore} points! Total: ${action.newTotal} (via host)`, 'info', 2500)
+      } else {
+        console.log('Non-host received REQUEST_HOLD_SCORE - ignoring')
+      }
+      break
+      
+    case 'REQUEST_PIG_OUT':
+      // Only host handles this request and broadcasts to everyone
+      if (props.isHost) {
+        console.log('Host received REQUEST_PIG_OUT from:', action.playerId)
+        
+        // Broadcast the pig out to everyone (including the requester)
+        broadcastGameAction({
+          type: 'PIG_OUT',
+          playerId: action.playerId,
+          playerName: action.playerName,
+          dice: action.dice
+        })
+        
+        // Update host's local game state
+        gameState.dice = action.dice
+        gameState.currentTurnScore = 0
+        gameState.isTurnEnding = true
+        gameState.lastAction = 'pigout'
+        
+        const playerName = getPlayerName(action.playerId)
+        showNotification(`💥 ${playerName} rolled a 1! Pig out! Turn lost! (via host)`, 'error', 3500)
+      } else {
+        console.log('Non-host received REQUEST_PIG_OUT - ignoring')
       }
       break
       
@@ -643,6 +871,16 @@ defineExpose({
           class="px-6 py-3 bg-purple-500 text-white font-medium rounded-lg hover:bg-purple-600 transition-colors"
         >
           New Game
+        </button>
+      </div>
+      
+      <!-- Debug/Admin Actions -->
+      <div v-if="isHost && !gameState.gameEnded" class="mt-4">
+        <button 
+          @click="forceSync"
+          class="px-4 py-2 bg-orange-500 text-white text-sm rounded hover:bg-orange-600 transition-colors"
+        >
+          Force Sync (Debug)
         </button>
       </div>
     </div>
