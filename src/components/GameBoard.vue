@@ -163,6 +163,19 @@ const getColorBorderClass = (colorName) => {
   return colorMap[colorName] || 'border-gray-400'
 }
 
+const getColorTextClass = (colorName) => {
+  const colorMap = {
+    'Green': 'text-green-600',
+    'Blue': 'text-blue-600', 
+    'Purple': 'text-purple-600',
+    'Orange': 'text-orange-600',
+    'Red': 'text-red-600',
+    'Yellow': 'text-yellow-600',
+    'Pink': 'text-pink-600'
+  }
+  return colorMap[colorName] || 'text-gray-600'
+}
+
 const showNotification = (message, type = 'info', duration = 3000) => {
   gameState.notification = { message, type }
   setTimeout(() => {
@@ -354,7 +367,7 @@ const rollDice = () => {
   }, 1500) // 1.5 second dice rolling animation
 }
 
-const holdScore = () => {
+const bankScore = () => {
   if (!canHold.value) return
   
   // Immediately prevent further actions
@@ -409,7 +422,7 @@ const holdScore = () => {
     })
   }
   
-  gameState.lastAction = 'held'
+  gameState.lastAction = 'banked'
   
   // End turn immediately - nextPlayer will reset currentTurnScore and isHolding
   setTimeout(() => {
@@ -653,7 +666,7 @@ const handleGameAction = (action) => {
         }
         gameState.currentTurnScore = 0
         gameState.isTurnEnding = false
-        gameState.lastAction = 'held'
+        gameState.lastAction = 'banked'
         
         const playerName = getPlayerName(action.playerId)
         showNotification(`💰 ${playerName} banked ${action.bankedScore} points! Total: ${action.newTotal}`, 'info', 2500)
@@ -765,7 +778,7 @@ const handleGameAction = (action) => {
         // Update host's local game state
         gameState.currentTurnScore = 0
         gameState.isTurnEnding = false
-        gameState.lastAction = 'held'
+        gameState.lastAction = 'banked'
         
         const playerName = getPlayerName(action.playerId)
         showNotification(`💰 ${playerName} banked ${action.bankedScore} points! Total: ${action.newTotal} (via host)`, 'info', 2500)
@@ -884,186 +897,332 @@ defineExpose({
 </script>
 
 <template>
-  <div class="game-board bg-white rounded-lg shadow-md p-6">
-    <!-- Header -->
-    <div class="mb-6">
-      <div class="flex items-center justify-between">
-        <h2 class="text-2xl font-bold text-gray-900">🎲 Pig Game</h2>
+  <div class="game-board min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 p-4 pt-0">
+    <div class="max-w-4xl mx-auto">
+      
+      <!-- Top Bar -->
+      <div class="flex items-center justify-between mb-6">
+        <div class="flex items-center space-x-3">
+          <div class="text-3xl">🎲</div>
+          <div>
+            <div class="text-lg font-bold text-gray-800">Round {{ gameState.currentRound }}</div>
+            <div class="text-sm text-gray-600">Race to 100 points!</div>
+          </div>
+        </div>
+        <!-- Hide quit game for now, can be enabled later -->
         <button 
           @click="leaveGame"
-          class="px-4 py-2 bg-red-500 text-white text-sm rounded hover:bg-red-600 transition-colors"
+          v-if="false" 
+          class="px-4 py-2 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600 transition-all duration-200 shadow-md hover:shadow-lg"
         >
-          Leave Game
+          Quit Game
         </button>
       </div>
-    </div>
 
-    <!-- Notification Display -->
-    <div class="mb-4 h-16 flex items-center">
-      <div 
-        v-if="gameState.notification" 
-        class="w-full p-3 rounded-lg border-l-4 transition-all duration-300 ease-in-out transform"
-        :class="{
-          'bg-green-50 border-green-400 text-green-800': gameState.notification.type === 'success',
-          'bg-blue-50 border-blue-400 text-blue-800': gameState.notification.type === 'info',
-          'bg-red-50 border-red-400 text-red-800': gameState.notification.type === 'error',
-          'bg-yellow-50 border-yellow-400 text-yellow-800': gameState.notification.type === 'warning'
-        }"
-      >
-        <div class="flex items-center">
-          <div class="text-lg mr-2 flex-shrink-0">
-            <span v-if="gameState.notification.type === 'success'">✅</span>
-            <span v-else-if="gameState.notification.type === 'info'">ℹ️</span>
-            <span v-else-if="gameState.notification.type === 'error'">❌</span>
-            <span v-else-if="gameState.notification.type === 'warning'">⚠️</span>
-          </div>
-          <div class="font-medium text-sm leading-tight">{{ gameState.notification.message }}</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Game Status -->
-    <div class="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-      <div class="flex items-center justify-between">
-        <div>
-          <h3 class="text-lg font-semibold text-blue-900">Round {{ gameState.currentRound }}</h3>
-          <p class="text-sm text-blue-700">
-            {{ gameState.gameEnded ? 'Game Over!' : `${currentPlayerData?.name || 'Unknown'}'s Turn` }}
-          </p>
-        </div>
-        <div class="text-right">
-          <div class="text-3xl font-bold text-blue-900">{{ gameState.currentTurnScore }}</div>
-          <div class="text-sm text-blue-700">Turn Score</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Dice Area -->
-    <div class="mb-6 text-center">
-      <div class="mb-4">
-        <Dice 
-          :value="gameState.dice"
-          :is-rolling="gameState.isRolling"
-          :disabled="!canRoll"
-          size="large"
-          @roll="rollDice"
-        />
-      </div>
-      
-      <div class="space-x-4" v-if="!gameState.gameEnded">
-        <button 
-          @click="rollDice"
-          :disabled="!canRoll"
-          class="px-6 py-3 bg-green-500 text-white font-medium rounded-lg hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-        >
-          {{ gameState.isRolling ? 'Rolling...' : 'Roll Dice' }}
-        </button>
-        
-        <button 
-          @click="holdScore"
-          :disabled="!canHold"
-          class="px-6 py-3 bg-yellow-500 text-white font-medium rounded-lg hover:bg-yellow-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-        >
-          Hold Score
-        </button>
-      </div>
-      
-      <!-- Game Over Actions -->
-      <div v-if="gameState.gameEnded && isHost" class="space-x-4">
-        <button 
-          @click="newGame"
-          class="px-6 py-3 bg-purple-500 text-white font-medium rounded-lg hover:bg-purple-600 transition-colors"
-        >
-          New Game
-        </button>
-      </div>
-      
-      <!-- Debug/Admin Actions -->
-      <div v-if="isHost && !gameState.gameEnded" class="mt-4">
-        <button 
-          @click="forceSync"
-          class="px-4 py-2 bg-orange-500 text-white text-sm rounded hover:bg-orange-600 transition-colors"
-        >
-          Force Sync (Debug)
-        </button>
-      </div>
-    </div>
-
-    <!-- Winner Announcement -->
-    <div v-if="gameState.gameEnded && gameState.winner" class="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg text-center">
-      <h3 class="text-2xl font-bold text-green-900 mb-2">🎉 Game Over! 🎉</h3>
-      <p class="text-lg text-green-700">
-        {{ gameState.winner.name }} wins with {{ gameState.winner.score }} points!
-      </p>
-    </div>
-
-    <!-- Players Scoreboard -->
-    <div class="bg-gray-50 rounded-lg p-4">
-      <h4 class="text-lg font-semibold text-gray-900 mb-4">Scoreboard</h4>
-      
-      <div class="space-y-2">
-        <div 
-          v-for="player in players" 
-          :key="player.id"
-          class="flex items-center justify-between p-3 bg-white rounded border-l-4"
-          :class="{
-            'bg-green-50': player.isCurrentPlayer && !gameState.gameEnded,
-            'bg-yellow-50': gameState.winner && player.id === gameState.winner.id,
-            [getColorBorderClass(player.name)]: true
-          }"
-        >
-          <div class="flex items-center">
-            <div class="text-lg mr-3">
-              {{ player.isHost ? '👑' : '🎮' }}
-              {{ player.isCurrentPlayer && !gameState.gameEnded ? '👆' : '' }}
-              {{ gameState.winner && player.id === gameState.winner.id ? '🏆' : '' }}
+      <!-- Players Scoreboard - Moved to Top -->
+      <div class="mb-8">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div 
+            v-for="player in players" 
+            :key="player.id"
+            class="relative bg-white rounded-xl shadow-lg border-l-4 p-4 transition-all duration-300 hover:shadow-xl"
+            :class="{
+              'ring-4 ring-yellow-300 ring-opacity-50 transform scale-105 bg-gradient-to-r from-yellow-50 to-orange-50': player.isCurrentPlayer && !gameState.gameEnded,
+              'ring-4 ring-green-300 ring-opacity-50 bg-gradient-to-r from-green-50 to-emerald-50': gameState.winner && player.id === gameState.winner.id,
+              [getColorBorderClass(player.name)]: true
+            }"
+          >
+            <!-- Current Player Indicator -->
+            <div 
+              v-if="player.isCurrentPlayer && !gameState.gameEnded"
+              class="absolute -top-2 -right-2 bg-yellow-400 text-yellow-900 text-xs font-bold px-2 py-1 rounded-full shadow-lg animate-pulse"
+            >
+              TURN
             </div>
-            <div>
-              <div class="text-sm font-medium text-gray-900">
-                {{ player.id === connectionManager?.state?.peerId ? `You (${player.name})` : player.name }}
+            
+            <!-- Winner Crown -->
+            <div 
+              v-if="gameState.winner && player.id === gameState.winner.id"
+              class="absolute -top-2 -right-2 bg-green-400 text-green-900 text-xs font-bold px-2 py-1 rounded-full shadow-lg"
+            >
+              WINNER
+            </div>
+
+            <div class="flex items-center justify-between">
+              <div class="flex items-center space-x-3">
+                <div class="text-2xl">
+                  {{ player.isHost ? '👑' : '🎮' }}
+                  {{ gameState.winner && player.id === gameState.winner.id ? '🏆' : '' }}
+                </div>
+                <div>
+                  <div class="font-bold text-gray-900">
+                    {{ player.id === connectionManager?.state?.peerId ? `You (${player.name})` : player.name }}
+                  </div>
+                  <div class="text-xs text-gray-500">{{ player.isHost ? 'Host' : 'Player' }}</div>
+                </div>
               </div>
-              <div class="text-xs text-gray-500">{{ player.id }}</div>
+              
+              <div class="text-right">
+                <!-- Banked points with optional turn points inline -->
+                <div class="flex items-center justify-end space-x-2">
+                  <div v-if="player.isCurrentPlayer && !gameState.gameEnded && gameState.currentTurnScore > 0" 
+                       class="text-3xl font-bold" :class="getColorTextClass(player.name)">
+                    +{{ gameState.currentTurnScore }}
+                  </div>
+                  <div v-if="player.isCurrentPlayer && !gameState.gameEnded && gameState.currentTurnScore > 0" 
+                       class="text-2xl text-gray-400">
+                    →
+                  </div>
+                  <div class="text-3xl font-bold text-gray-900">{{ player.score }}</div>
+                </div>
+                <div class="text-sm text-gray-500">points</div>
+              </div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dice and Actions Area -->
+      <div class="mb-8">
+        <div class="bg-white rounded-2xl shadow-xl p-8 text-center">
+          <!-- Dice Component -->
+          <div class="mb-6">
+            <Dice 
+              :value="gameState.dice"
+              :is-rolling="gameState.isRolling"
+              :disabled="!canRoll"
+              size="large"
+              @roll="rollDice"
+            />
           </div>
           
-          <div class="text-right">
-            <div class="text-xl font-bold text-gray-900">{{ player.score }}</div>
-            <div class="text-xs text-gray-500">points</div>
+          <!-- Action Buttons -->
+          <div class="flex flex-col sm:flex-row gap-4 justify-center items-center" v-if="!gameState.gameEnded">
+            <button 
+              @click="rollDice"
+              :disabled="!canRoll"
+              class="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-green-500 to-green-600 text-white font-bold text-lg rounded-xl hover:from-green-600 hover:to-green-700 disabled:from-gray-300 disabled:to-gray-400 disabled:text-gray-200 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:transform-none disabled:shadow-md disabled:hover:from-gray-300 disabled:hover:to-gray-400 disabled:hover:shadow-md disabled:hover:scale-100"
+            >
+              {{ gameState.isRolling ? '🎲 Rolling...' : '🎲 Roll Dice' }}
+            </button>
+            
+            <button 
+              @click="bankScore"
+              :disabled="!canHold"
+              class="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-yellow-500 to-orange-500 text-white font-bold text-lg rounded-xl hover:from-yellow-600 hover:to-orange-600 disabled:from-gray-300 disabled:to-gray-400 disabled:text-gray-200 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:transform-none disabled:shadow-md disabled:hover:from-gray-300 disabled:hover:to-gray-400 disabled:hover:shadow-md disabled:hover:scale-100"
+            >
+              💰 Bank Points
+            </button>
+          </div>
+          
+          <!-- Game Over Actions -->
+          <div v-if="gameState.gameEnded" class="space-y-4">
+            <!-- Winner Announcement -->
+            <div v-if="gameState.winner" class="mb-6 p-6 bg-gradient-to-r from-green-100 to-emerald-100 border border-green-200 rounded-xl text-center">
+              <div class="text-4xl mb-2">🎉</div>
+              <h3 class="text-3xl font-bold text-green-900 mb-2">Game Over!</h3>
+              <p class="text-xl text-green-700">
+                {{ gameState.winner.name }} wins with {{ gameState.winner.score }} points!
+              </p>
+            </div>
+
+            <div v-if="isHost" class="flex justify-center">
+              <button 
+                @click="newGame"
+                class="px-8 py-4 bg-gradient-to-r from-purple-500 to-indigo-500 text-white font-bold text-lg rounded-xl hover:from-purple-600 hover:to-indigo-600 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
+              >
+                🎮 New Game
+              </button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- Game Rules -->
-    <div class="mt-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
-      <h4 class="text-sm font-semibold text-gray-900 mb-2">How to Play:</h4>
-      <ul class="text-sm text-gray-600 space-y-1">
-        <li>• Roll the dice to accumulate points for your turn</li>
-        <li>• Rolling a 1 ends your turn and loses all points for that turn</li>
-        <li>• Click "Hold Score" to bank your turn points and pass to next player</li>
-        <li>• First player to reach 100 points wins!</li>
-      </ul>
-    </div>
+      <!-- Notification Display (Hidden for clean UI - kept for debugging) -->
+      <div v-if="false" class="mb-6 h-16 flex items-center justify-center">
+        <div 
+          v-if="gameState.notification" 
+          class="w-full max-w-md p-4 rounded-xl shadow-lg border-l-4 transition-all duration-500 ease-in-out transform animate-pulse"
+          :class="{
+            'bg-green-50 border-green-400 text-green-800': gameState.notification.type === 'success',
+            'bg-blue-50 border-blue-400 text-blue-800': gameState.notification.type === 'info',
+            'bg-red-50 border-red-400 text-red-800': gameState.notification.type === 'error',
+            'bg-yellow-50 border-yellow-400 text-yellow-800': gameState.notification.type === 'warning'
+          }"
+        >
+          <div class="flex items-center justify-center">
+            <div class="text-xl mr-3 flex-shrink-0">
+              <span v-if="gameState.notification.type === 'success'">✅</span>
+              <span v-else-if="gameState.notification.type === 'info'">ℹ️</span>
+              <span v-else-if="gameState.notification.type === 'error'">💥</span>
+              <span v-else-if="gameState.notification.type === 'warning'">⚠️</span>
+            </div>
+            <div class="font-semibold text-center">{{ gameState.notification.message }}</div>
+          </div>
+        </div>
+      </div>
 
-    <!-- Debug Info (temporary) -->
-    <div class="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-      <h4 class="text-xs font-semibold text-yellow-900 mb-2">Debug Info:</h4>
-      <pre class="text-xs text-yellow-800">{{ JSON.stringify(debugInfo, null, 2) }}</pre>
+      <!-- Game Rules (Collapsed by default) -->
+      <div class="mb-6">
+        <details class="bg-white rounded-xl shadow-md overflow-hidden">
+          <summary class="p-4 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors font-semibold text-gray-700">
+            📖 How to Play
+          </summary>
+          <div class="p-4 bg-white">
+            <ul class="text-sm text-gray-600 space-y-2">
+              <li class="flex items-center"><span class="text-green-500 mr-2">🎲</span> Roll the dice to accumulate points for your turn</li>
+              <li class="flex items-center"><span class="text-red-500 mr-2">💥</span> Rolling a 1 ends your turn and loses all points for that turn</li>
+              <li class="flex items-center"><span class="text-yellow-500 mr-2">💰</span> Click "Bank Score" to save your turn points and pass to next player</li>
+              <li class="flex items-center"><span class="text-purple-500 mr-2">🏆</span> First player to reach 100 points wins!</li>
+            </ul>
+          </div>
+        </details>
+      </div>
+
+      <!-- Debug/Admin Actions -->
+      <div v-if="isHost && !gameState.gameEnded" class="text-center">
+        <button 
+          @click="forceSync"
+          class="px-4 py-2 bg-orange-500 text-white text-sm rounded-lg hover:bg-orange-600 transition-colors shadow-md"
+        >
+          🔄 Force Sync (Debug)
+        </button>
+      </div>
+
+      <!-- Debug Info (temporary) -->
+      <div class="mt-6 opacity-50 hover:opacity-100 transition-opacity">
+        <details class="bg-yellow-50 rounded-lg overflow-hidden">
+          <summary class="p-3 bg-yellow-100 cursor-pointer text-xs font-semibold text-yellow-900">
+            🐛 Debug Info
+          </summary>
+          <div class="p-3 bg-yellow-50">
+            <pre class="text-xs text-yellow-800 overflow-auto">{{ JSON.stringify(debugInfo, null, 2) }}</pre>
+          </div>
+        </details>
+      </div>
+
     </div>
   </div>
 </template>
 
 <style scoped>
-.animate-pulse {
-  animation: pulse 0.5s ease-in-out infinite alternate;
+/* Custom animations */
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.02);
+    opacity: 0.9;
+  }
 }
 
-@keyframes pulse {
+@keyframes glow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(59, 130, 246, 0.6);
+  }
+}
+
+@keyframes bounce-subtle {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+/* Enhanced button hover effects */
+.game-board button:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+.game-board button:not(:disabled):active {
+  transform: translateY(0);
+}
+
+/* Completely prevent hover effects on disabled buttons */
+.game-board button:disabled:hover {
+  transform: none !important;
+}
+
+/* Current player glow effect */
+.game-board .ring-4 {
+  animation: glow 2s ease-in-out infinite;
+}
+
+/* Notification slide-in effect */
+.game-board .transition-all {
+  animation: slide-in 0.3s ease-out;
+}
+
+@keyframes slide-in {
   from {
-    transform: scale(1);
+    opacity: 0;
+    transform: translateY(-10px);
   }
   to {
-    transform: scale(1.1);
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Score card hover effect */
+.game-board .hover\:shadow-xl:hover {
+  transform: translateY(-2px);
+}
+
+/* Dice area enhancement */
+.game-board .bg-white.rounded-2xl.shadow-xl {
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Mobile responsiveness improvements */
+@media (max-width: 640px) {
+  .game-board {
+    padding: 1rem;
+    padding-top:0px;
+  }
+  
+  .game-board .text-3xl {
+    font-size: 2rem;
+  }
+  
+  .game-board .text-2xl {
+    font-size: 1.5rem;
+  }
+}
+
+/* Focus styles for accessibility */
+.game-board button:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* Enhanced card borders */
+.game-board .border-l-4 {
+  border-left-width: 6px;
+}
+
+/* Winner celebration effect */
+.game-board .from-green-100.to-emerald-100 {
+  animation: celebration 1s ease-in-out;
+}
+
+@keyframes celebration {
+  0%, 100% {
+    transform: scale(1);
+  }
+  25% {
+    transform: scale(1.02);
+  }
+  75% {
+    transform: scale(0.98);
   }
 }
 </style>
