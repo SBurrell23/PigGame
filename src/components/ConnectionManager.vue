@@ -41,6 +41,7 @@ const connectedPeers = ref([])
 const joinGameId = ref('')
 const lobbyMode = ref('join') // 'join' or 'host'
 const allLobbyPlayers = ref([]) // All players in lobby (including host)
+const gameInProgress = ref(false) // Flag to track if game is in progress
 
 // Utility function to copy text to clipboard
 const copyToClipboard = async (text) => {
@@ -87,22 +88,23 @@ const broadcastLobbyUpdate = () => {
 const startGame = () => {
   if (!state.isHost) return
   
+  console.log('Starting game with lobby players:', allLobbyPlayers.value)
+  
+  // Set game in progress flag
+  gameInProgress.value = true
+  
   const gameStartData = {
     type: 'GAME_START',
-    players: [
-      {
-        peerId: state.peerId,
-        name: props.playerName,
-        isHost: true
-      },
-      ...connectedPeers.value.map(peerId => ({
-        peerId,
-        name: 'Player',
-        isHost: false
-      }))
-    ],
+    players: allLobbyPlayers.value.map(player => ({
+      id: player.peerId,
+      peerId: player.peerId, // Keep both for compatibility
+      name: player.name,
+      isHost: player.isHost
+    })),
     timestamp: Date.now()
   }
+  
+  console.log('Game start data:', gameStartData)
   
   // Broadcast to all players
   broadcast(gameStartData)
@@ -285,6 +287,7 @@ const handleConnection = (conn) => {
     // Handle game start message
     if (data && data.type === 'GAME_START') {
       console.log('Game start received:', data.players)
+      gameInProgress.value = true  // Set flag for non-host players too
       emit('game-started', data)
       return
     }
@@ -301,31 +304,36 @@ const handleConnection = (conn) => {
     state.connections.delete(conn.peer)
     updateConnectedPeers()
     
-    // If we're the host, broadcast lobby update to remaining players
-    if (state.isHost) {
-      setTimeout(() => broadcastLobbyUpdate(), 100)
-    }
-    
-    // If we're not the host and the connection that closed was to the host (lobby ID), 
-    // then the host left and we should return to home screen
-    if (!state.isHost && conn.peer === state.lobbyId) {
-      console.log('Host disconnected, returning to home screen')
+    // Only handle lobby updates if game is not in progress
+    if (!gameInProgress.value) {
+      // If we're the host, broadcast lobby update to remaining players
+      if (state.isHost) {
+        setTimeout(() => broadcastLobbyUpdate(), 100)
+      }
       
-      // Reset lobby state
-      state.lobbyId = null
-      state.isInLobby = false
-      state.isHost = false
-      lobbyMode.value = 'join'
-      joinGameId.value = ''
-      allLobbyPlayers.value = []
-      
-      // Show message that host left
-      state.error = 'The host has left the lobby'
-      
-      // Clear error after a few seconds
-      setTimeout(() => {
-        state.error = null
-      }, 5000)
+      // If we're not the host and the connection that closed was to the host (lobby ID), 
+      // then the host left and we should return to home screen
+      if (!state.isHost && conn.peer === state.lobbyId) {
+        console.log('Host disconnected, returning to home screen')
+        
+        // Reset lobby state
+        state.lobbyId = null
+        state.isInLobby = false
+        state.isHost = false
+        lobbyMode.value = 'join'
+        joinGameId.value = ''
+        allLobbyPlayers.value = []
+        
+        // Show message that host left
+        state.error = 'The host has left the lobby'
+        
+        // Clear error after a few seconds
+        setTimeout(() => {
+          state.error = null
+        }, 5000)
+      }
+    } else {
+      console.log('Game in progress, not handling lobby disconnect for:', conn.peer)
     }
     
     emit('peer-disconnected', {
@@ -456,6 +464,12 @@ const getConnectionInfo = () => {
   }
 }
 
+// Reset game state (when leaving game)
+const resetGameState = () => {
+  gameInProgress.value = false
+  console.log('Game state reset - lobby mode resumed')
+}
+
 // Lifecycle hooks
 onMounted(() => {
   console.log('ConnectionManager mounted - waiting for user action')
@@ -475,6 +489,7 @@ defineExpose({
   disconnect,
   getConnectionInfo,
   startGame,
+  resetGameState,
   // Reactive state access
   state: state,
   connectedPeers: connectedPeers,

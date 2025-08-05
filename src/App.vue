@@ -14,6 +14,7 @@ const {
 
 // Refs
 const connectionManager = ref(null)
+const gameBoardRef = ref(null)
 const currentView = ref('lobby') // 'lobby' or 'game'
 const gameData = ref(null)
 
@@ -37,10 +38,9 @@ const onDataReceived = (event) => {
   
   // Handle game actions if we're in game mode
   if (currentView.value === 'game' && event.data.type === 'GAME_ACTION') {
-    // Forward to GameBoard component
-    const gameBoard = document.querySelector('.game-board')
-    if (gameBoard && gameBoard.__vueParentComponent) {
-      gameBoard.__vueParentComponent.exposed.handleGameAction(event.data.action)
+    // Forward to GameBoard component using ref
+    if (gameBoardRef.value && gameBoardRef.value.handleGameAction) {
+      gameBoardRef.value.handleGameAction(event.data.action)
     }
   }
   
@@ -57,6 +57,11 @@ const onGameStarted = (data) => {
 const onLeaveGame = () => {
   currentView.value = 'lobby'
   gameData.value = null
+  
+  // Reset game state in connection manager
+  if (connectionManager.value && connectionManager.value.resetGameState) {
+    connectionManager.value.resetGameState()
+  }
 }
 
 const onConnectionError = (error) => {
@@ -88,22 +93,24 @@ onMounted(() => {
     <main class="py-10">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
+        <!-- ConnectionManager - always rendered -->
+        <ConnectionManager 
+          ref="connectionManager"
+          :player-name="'Player 1'"
+          :style="{ display: currentView === 'game' ? 'none' : 'block' }"
+          @peer-ready="onPeerReady"
+          @peer-connected="onPeerConnected" 
+          @peer-disconnected="onPeerDisconnected"
+          @data-received="onDataReceived"
+          @connection-error="onConnectionError"
+          @game-started="onGameStarted"
+        />
+        
         <!-- Lobby View -->
         <div v-if="currentView === 'lobby'" class="grid grid-cols-1 lg:grid-cols-2 gap-8">
           
-          <!-- Connection Manager -->
+          <!-- Left Column - Space for Connection Manager (rendered above) -->
           <div class="space-y-6">
-            <ConnectionManager 
-              ref="connectionManager"
-              :player-name="'Player 1'"
-              @peer-ready="onPeerReady"
-              @peer-connected="onPeerConnected" 
-              @peer-disconnected="onPeerDisconnected"
-              @data-received="onDataReceived"
-              @connection-error="onConnectionError"
-              @game-started="onGameStarted"
-            />
-            
             <!-- Game State Display -->
             <div class="bg-white rounded-lg shadow-md p-6">
               <h3 class="text-lg font-semibold text-gray-900 mb-4">Game State</h3>
@@ -186,9 +193,11 @@ onMounted(() => {
         <!-- Game View -->
         <div v-else-if="currentView === 'game'" class="max-w-4xl mx-auto">
           <GameBoard 
+            ref="gameBoardRef"
             :connection-manager="connectionManager"
             :player-name="'Player 1'"
             :is-host="connectionManager?.state?.isHost || false"
+            :game-data="gameData"
             @leave-game="onLeaveGame"
           />
         </div>
