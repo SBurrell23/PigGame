@@ -1,0 +1,684 @@
+<script setup>
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import Peer from 'peerjs'
+
+// Props
+const props = defineProps({
+  gameId: {
+    type: String,
+    default: null
+  },
+  playerName: {
+    type: String,
+    default: 'Player'
+  }
+})
+
+// Emits
+const emit = defineEmits([
+  'peer-connected',
+  'peer-disconnected', 
+  'data-received',
+  'connection-error',
+  'peer-ready'
+])
+
+// Reactive state
+const state = reactive({
+  peer: null,
+  peerId: null,
+  connections: new Map(),
+  isHost: false,
+  isConnected: false,
+  error: null,
+  status: 'disconnected', // disconnected, connecting, connected, error
+  lobbyId: null,
+  isInLobby: false
+})
+
+const connectedPeers = ref([])
+const joinGameId = ref('')
+const lobbyMode = ref('join') // 'join' or 'host'
+const allLobbyPlayers = ref([]) // All players in lobby (including host)
+
+// Utility function to copy text to clipboard
+const copyToClipboard = async (text) => {
+  try {
+    await navigator.clipboard.writeText(text)
+    console.log('Copied to clipboard:', text)
+  } catch (error) {
+    console.error('Failed to copy to clipboard:', error)
+  }
+}
+
+// Generate a random game ID for hosting
+const generateGameId = () => {
+  return Math.random().toString(36).substr(2, 8).toUpperCase()
+}
+
+// Broadcast lobby update to all connected players (host only)
+const broadcastLobbyUpdate = () => {
+  if (!state.isHost) return
+  
+  const lobbyData = {
+    type: 'LOBBY_UPDATE',
+    players: [
+      {
+        peerId: state.peerId,
+        name: props.playerName,
+        isHost: true
+      },
+      ...connectedPeers.value.map(peerId => ({
+        peerId,
+        name: 'Player', // We don't have player names from other peers yet
+        isHost: false
+      }))
+    ]
+  }
+  
+  broadcast(lobbyData)
+  
+  // Update our own lobby players list
+  allLobbyPlayers.value = lobbyData.players
+}
+
+// Host a new game lobby
+const hostLobby = () => {
+  const gameId = generateGameId()
+  state.lobbyId = gameId
+  state.isHost = true
+  lobbyMode.value = 'host'
+  initializePeer(gameId)
+}
+
+// Join an existing game lobby
+const joinLobby = () => {
+  if (joinGameId.value.trim()) {
+    state.lobbyId = joinGameId.value.trim().toUpperCase()
+    state.isHost = false
+    lobbyMode.value = 'join'
+    initializePeer()
+  }
+}
+
+// Leave the current lobby
+const leaveLobby = () => {
+  disconnect()
+  state.lobbyId = null
+  state.isInLobby = false
+  state.isHost = false
+  lobbyMode.value = 'join'
+  joinGameId.value = ''
+}
+
+// Handle connecting to a new peer (now used internally)
+const handleConnect = () => {
+  if (state.isHost) {
+    // Host doesn't need to connect to anyone - players connect to host
+    return
+  }
+  
+  if (state.lobbyId) {
+    try {
+      connectToPeer(state.lobbyId)
+    } catch (error) {
+      console.error('Failed to connect to lobby:', error)
+    }
+  }
+}
+
+// Create a new peer instance
+const initializePeer = (customId = null) => {
+  try {
+    state.status = 'connecting'
+    
+    // Use custom ID for host, or generate one for players
+    const peerId = customId || undefined
+    
+    // Try to use public PeerJS server with fallback configuration
+    state.peer = new Peer(peerId, {
+      // Use public PeerJS server
+      debug: 2, // Enable debug logging
+      config: {
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:global.stun.twilio.com:3478' }
+        ]
+      }
+    })
+
+    // Handle peer open event
+    state.peer.on('open', (id) => {
+      state.peerId = id
+      state.isConnected = true
+      state.status = 'connected'
+      state.error = null
+      
+      // If we're hosting and got the lobby ID we wanted
+      if (state.isHost && state.lobbyId && id === state.lobbyId) {
+        console.log('Lobby created successfully:', id)
+        state.isInLobby = true
+      }
+      // If we're joining, try to connect to the host
+      else if (!state.isHost && state.lobbyId) {
+        handleConnect()
+        // Only set isInLobby to true after we successfully connect to host
+      }
+      
+      emit('peer-ready', {
+        peerId: id,
+        isHost: state.isHost,
+        lobbyId: state.lobbyId
+      })
+    })
+
+    // Handle incoming connections
+    state.peer.on('connection', (conn) => {
+      handleConnection(conn)
+    })
+
+    // Handle errors
+    state.peer.on('error', (error) => {
+      console.error('Peer error:', error)
+      state.error = error.message
+      state.status = 'error'
+      emit('connection-error', error)
+    })
+
+    // Handle disconnection
+    state.peer.on('disconnected', () => {
+      state.isConnected = false
+      state.status = 'disconnected'
+    })
+
+  } catch (error) {
+    console.error('Failed to initialize peer:', error)
+    state.error = error.message
+    state.status = 'error'
+    emit('connection-error', error)
+  }
+}
+
+// Handle a new connection (incoming or outgoing)
+const handleConnection = (conn) => {
+  // Store connection
+  state.connections.set(conn.peer, conn)
+  
+  // Setup connection event handlers
+  conn.on('open', () => {
+    console.log('Connection opened with:', conn.peer)
+    updateConnectedPeers()
+    
+    // If we're a player connecting to a host, now we're officially in the lobby
+    if (!state.isHost && conn.peer === state.lobbyId) {
+      state.isInLobby = true
+    }
+    
+    // If we're the host, broadcast lobby update to all players
+    if (state.isHost) {
+      setTimeout(() => broadcastLobbyUpdate(), 100) // Small delay to ensure connection is ready
+    }
+    
+    emit('peer-connected', {
+      peerId: conn.peer,
+      connection: conn
+    })
+  })
+
+  conn.on('data', (data) => {
+    console.log('Data received from', conn.peer, ':', data)
+    
+    // Handle kick message
+    if (data && data.type === 'KICKED') {
+      console.log('Kicked from lobby:', data.message)
+      
+      // Set error message to show user they were kicked
+      state.error = data.message || 'You have been removed from the lobby'
+      
+      // Disconnect completely - this will reset all state and close peer connection
+      disconnect()
+      
+      // Clear error after a few seconds
+      setTimeout(() => {
+        state.error = null
+      }, 5000)
+      
+      return
+    }
+    
+    // Handle lobby update message
+    if (data && data.type === 'LOBBY_UPDATE') {
+      console.log('Lobby update received:', data.players)
+      allLobbyPlayers.value = data.players
+      return
+    }
+    
+    emit('data-received', {
+      peerId: conn.peer,
+      data: data,
+      timestamp: Date.now()
+    })
+  })
+
+  conn.on('close', () => {
+    console.log('Connection closed with:', conn.peer)
+    state.connections.delete(conn.peer)
+    updateConnectedPeers()
+    
+    // If we're the host, broadcast lobby update to remaining players
+    if (state.isHost) {
+      setTimeout(() => broadcastLobbyUpdate(), 100)
+    }
+    
+    // If we're not the host and the connection that closed was to the host (lobby ID), 
+    // then the host left and we should return to home screen
+    if (!state.isHost && conn.peer === state.lobbyId) {
+      console.log('Host disconnected, returning to home screen')
+      
+      // Reset lobby state
+      state.lobbyId = null
+      state.isInLobby = false
+      state.isHost = false
+      lobbyMode.value = 'join'
+      joinGameId.value = ''
+      allLobbyPlayers.value = []
+      
+      // Show message that host left
+      state.error = 'The host has left the lobby'
+      
+      // Clear error after a few seconds
+      setTimeout(() => {
+        state.error = null
+      }, 5000)
+    }
+    
+    emit('peer-disconnected', {
+      peerId: conn.peer
+    })
+  })
+
+  conn.on('error', (error) => {
+    console.error('Connection error with', conn.peer, ':', error)
+    state.connections.delete(conn.peer)
+    updateConnectedPeers()
+    
+    emit('connection-error', error)
+  })
+}
+
+// Connect to another peer
+const connectToPeer = (peerId) => {
+  if (!state.peer || !state.isConnected) {
+    throw new Error('Peer not initialized or not connected')
+  }
+
+  if (state.connections.has(peerId)) {
+    console.warn('Already connected to peer:', peerId)
+    return
+  }
+
+  try {
+    const conn = state.peer.connect(peerId)
+    handleConnection(conn)
+    return conn
+  } catch (error) {
+    console.error('Failed to connect to peer:', error)
+    emit('connection-error', error)
+    throw error
+  }
+}
+
+// Send data to a specific peer
+const sendToPeer = (peerId, data) => {
+  const conn = state.connections.get(peerId)
+  if (conn && conn.open) {
+    conn.send(data)
+    return true
+  }
+  console.warn('No open connection to peer:', peerId)
+  return false
+}
+
+// Send data to all connected peers
+const broadcast = (data) => {
+  let sentCount = 0
+  state.connections.forEach((conn, peerId) => {
+    if (conn.open) {
+      conn.send(data)
+      sentCount++
+    }
+  })
+  return sentCount
+}
+
+// Disconnect from a specific peer
+const disconnectFromPeer = (peerId) => {
+  const conn = state.connections.get(peerId)
+  if (conn) {
+    // Send kick message before disconnecting
+    if (conn.open) {
+      conn.send({
+        type: 'KICKED',
+        message: 'You have been removed from the lobby by the host'
+      })
+    }
+    
+    conn.close()
+    state.connections.delete(peerId)
+    updateConnectedPeers()
+  }
+}
+
+// Disconnect from all peers and destroy peer instance
+const disconnect = () => {
+  // Close all connections
+  state.connections.forEach((conn) => {
+    conn.close()
+  })
+  state.connections.clear()
+  
+  // Destroy peer
+  if (state.peer) {
+    state.peer.destroy()
+    state.peer = null
+  }
+  
+  // Reset state
+  state.peerId = null
+  state.isConnected = false
+  state.isHost = false
+  state.status = 'disconnected'
+  state.error = null
+  state.lobbyId = null
+  state.isInLobby = false
+  
+  // Reset UI state
+  joinGameId.value = ''
+  lobbyMode.value = 'join'
+  allLobbyPlayers.value = []
+  
+  updateConnectedPeers()
+}
+
+// Update the reactive list of connected peers
+const updateConnectedPeers = () => {
+  connectedPeers.value = Array.from(state.connections.keys()).filter(peerId => {
+    const conn = state.connections.get(peerId)
+    return conn && conn.open
+  })
+}
+
+// Get connection info
+const getConnectionInfo = () => {
+  return {
+    peerId: state.peerId,
+    isHost: state.isHost,
+    isConnected: state.isConnected,
+    connectedPeers: connectedPeers.value,
+    status: state.status,
+    error: state.error
+  }
+}
+
+// Lifecycle hooks
+onMounted(() => {
+  console.log('ConnectionManager mounted - waiting for user action')
+  // Don't automatically initialize peer - wait for user to host or join
+})
+
+onUnmounted(() => {
+  disconnect()
+})
+
+// Expose methods to parent component
+defineExpose({
+  connectToPeer,
+  sendToPeer,
+  broadcast,
+  disconnectFromPeer,
+  disconnect,
+  getConnectionInfo,
+  // Reactive state access
+  state: state,
+  connectedPeers: connectedPeers
+})
+</script>
+
+<template>
+  <div class="connection-manager bg-white rounded-lg shadow-md p-6">
+    <!-- Header -->
+    <div class="mb-6">
+      <div class="flex items-center justify-between">
+        
+        <!-- Status indicator -->
+        <div class="flex items-center space-x-2">
+          <div class="flex items-center">
+            <div 
+              :class="[
+                'w-3 h-3 rounded-full mr-2',
+                {
+                  'bg-gray-400': state.status === 'disconnected',
+                  'bg-yellow-400 animate-pulse': state.status === 'connecting',
+                  'bg-green-400': state.status === 'connected',
+                  'bg-red-400': state.status === 'error'
+                }
+              ]"
+            ></div>
+            <span class="text-sm font-medium text-gray-700 capitalize">
+              {{ state.status }}
+            </span>
+          </div>
+          
+          <div v-if="state.isHost" class="px-2 py-1 bg-purple-100 text-purple-800 text-xs font-medium rounded">
+            👑 Host
+          </div>
+          <div v-else-if="state.isInLobby" class="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded">
+            🎮 Player
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Not in lobby - Choose host or join -->
+    <div v-if="!state.isInLobby" class="space-y-4">
+      <div class="text-center">
+        <h4 class="text-md font-medium text-gray-900 mb-3">Ready to play?</h4>
+        <p class="text-sm text-gray-600 mb-6">Host a new game or join an existing lobby</p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Host Game -->
+        <div class="border border-gray-200 rounded-lg p-4 hover:border-purple-300 transition-colors">
+          <div class="text-center">
+            <div class="text-3xl mb-2">👑</div>
+            <h5 class="font-semibold text-gray-900 mb-2">Host Game</h5>
+            <p class="text-sm text-gray-600 mb-4">Create a new lobby for other players to join</p>
+            <button 
+              @click="hostLobby"
+              :disabled="state.status === 'connecting'"
+              class="w-full px-4 py-2 bg-purple-500 text-white text-sm rounded hover:bg-purple-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+            >
+              {{ state.status === 'connecting' ? 'Creating...' : 'Create Lobby' }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Join Game -->
+        <div class="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors">
+          <div class="text-center">
+            <div class="text-3xl mb-2">🎮</div>
+            <h5 class="font-semibold text-gray-900 mb-2">Join Game</h5>
+            <p class="text-sm text-gray-600 mb-4">Enter a lobby ID to join an existing game</p>
+            <div class="space-y-2">
+              <input 
+                v-model="joinGameId"
+                type="text" 
+                placeholder="Enter Lobby ID"
+                class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-center font-mono"
+                @keyup.enter="joinLobby"
+              >
+              <button 
+                @click="joinLobby"
+                :disabled="!joinGameId.trim() || state.status === 'connecting'"
+                class="w-full px-4 py-2 bg-blue-500 text-white text-sm rounded hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+              >
+                {{ state.status === 'connecting' ? 'Joining...' : 'Join Lobby' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- In lobby -->
+    <div v-else class="space-y-4">
+      <!-- Lobby Info -->
+      <div class="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-4">
+        <div class="flex items-center justify-between mb-3">
+          <h4 class="text-md font-semibold text-gray-900">
+            {{ state.isHost ? '👑 Your Lobby' : '🎮 Joined Lobby' }}
+          </h4>
+          <button 
+            @click="leaveLobby"
+            class="px-3 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600 transition-colors"
+          >
+            Leave
+          </button>
+        </div>
+
+        <!-- Lobby ID -->
+        <div class="mb-3">
+          <label class="block text-sm font-medium text-gray-700 mb-1">
+            {{ state.isHost ? 'Share this Lobby ID:' : 'Lobby ID:' }}
+          </label>
+          <div class="flex items-center space-x-2">
+            <code class="px-3 py-2 bg-white border border-gray-300 text-gray-800 rounded text-lg font-mono flex-1 text-center">
+              {{ state.lobbyId }}
+            </code>
+            <button 
+              @click="copyToClipboard(state.lobbyId)"
+              class="px-3 py-2 bg-green-500 text-white text-sm rounded hover:bg-green-600 transition-colors flex items-center"
+            >
+              📋 Copy
+            </button>
+          </div>
+        </div>
+
+        <div v-if="state.isHost" class="text-sm text-gray-600">
+          Share this ID with other players so they can join your lobby!
+        </div>
+      </div>
+
+      <!-- Players in Lobby -->
+      <div class="bg-gray-50 rounded-lg p-4">
+        <h4 class="text-md font-medium text-gray-900 mb-3">
+          👥 Players in Lobby ({{ state.isHost ? connectedPeers.length + 1 : allLobbyPlayers.length }})
+        </h4>
+        
+        <div class="space-y-2">
+          <!-- For hosts: show yourself + connected players -->
+          <template v-if="state.isHost">
+            <!-- Host player (yourself) -->
+            <div class="flex items-center justify-between p-3 bg-white rounded border-l-4 border-purple-400">
+              <div class="flex items-center">
+                <div class="text-lg mr-2">👑</div>
+                <div>
+                  <div class="text-sm font-medium text-gray-900">
+                    You ({{ props.playerName }})
+                  </div>
+                  <code class="text-xs text-gray-500">{{ state.peerId }}</code>
+                </div>
+              </div>
+              <div class="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded">
+                Host
+              </div>
+            </div>
+
+            <!-- Connected players -->
+            <div 
+              v-for="peerId in connectedPeers" 
+              :key="peerId"
+              class="flex items-center justify-between p-3 bg-white rounded border-l-4 border-blue-400"
+            >
+              <div class="flex items-center">
+                <div class="text-lg mr-2">🎮</div>
+                <div>
+                  <div class="text-sm font-medium text-gray-900">
+                    Player
+                  </div>
+                  <code class="text-xs text-gray-500">{{ peerId }}</code>
+                </div>
+              </div>
+              <div class="flex items-center space-x-2">
+                <div class="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded">
+                  Connected
+                </div>
+                <button 
+                  @click="disconnectFromPeer(peerId)"
+                  class="px-2 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600 transition-colors"
+                >
+                  Kick
+                </button>
+              </div>
+            </div>
+          </template>
+
+          <!-- For players: show all lobby players from host's broadcast -->
+          <template v-else>
+            <div 
+              v-for="player in allLobbyPlayers" 
+              :key="player.peerId"
+              class="flex items-center justify-between p-3 bg-white rounded border-l-4"
+              :class="player.isHost ? 'border-purple-400' : 'border-blue-400'"
+            >
+              <div class="flex items-center">
+                <div class="text-lg mr-2">{{ player.isHost ? '👑' : '🎮' }}</div>
+                <div>
+                  <div class="text-sm font-medium text-gray-900">
+                    {{ player.peerId === state.peerId ? `You (${props.playerName})` : player.name }}
+                  </div>
+                  <code class="text-xs text-gray-500">{{ player.peerId }}</code>
+                </div>
+              </div>
+              <div class="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded">
+                {{ player.isHost ? 'Host' : 'Connected' }}
+              </div>
+            </div>
+          </template>
+
+          <!-- Waiting for players -->
+          <div v-if="(state.isHost && connectedPeers.length === 0) || (!state.isHost && allLobbyPlayers.length <= 1)" class="text-center py-4">
+            <div class="text-gray-400 text-lg mb-2">⏳</div>
+            <p class="text-sm text-gray-500">
+              {{ state.isHost ? 'Waiting for players to join...' : 'Waiting for other players...' }}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Game Controls (if host) -->
+      <div v-if="state.isHost && connectedPeers.length > 0" class="bg-green-50 border border-green-200 rounded-lg p-4">
+        <h4 class="text-md font-medium text-green-900 mb-3">🎲 Ready to Start?</h4>
+        <p class="text-sm text-green-700 mb-3">
+          You have {{ connectedPeers.length }} player{{ connectedPeers.length === 1 ? '' : 's' }} in your lobby.
+        </p>
+        <button 
+          class="w-full px-4 py-2 bg-green-500 text-white font-medium rounded hover:bg-green-600 transition-colors"
+        >
+          🚀 Start Game
+        </button>
+      </div>
+    </div>
+
+    <!-- Error display -->
+    <div v-if="state.error" class="mt-4 p-3 bg-red-100 border border-red-300 rounded">
+      <p class="text-red-700 text-sm">
+        <strong>Error:</strong> {{ state.error }}
+      </p>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+/* Component-specific styles can go here if needed */
+</style>
