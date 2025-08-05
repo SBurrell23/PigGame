@@ -747,6 +747,7 @@ const handleGameAction = (action) => {
         gameState.currentRound = action.requestedCurrentRound
         gameState.currentTurnScore = 0
         gameState.isTurnEnding = false
+        gameState.isPiggedOut = false // Reset pig out indicator
         
         // Update player current status
         players.value.forEach((player, index) => {
@@ -987,7 +988,7 @@ defineExpose({
 
       <!-- Players Scoreboard - Moved to Top -->
       <div class="mb-8">
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div class="grid gap-4" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
           <div 
             v-for="player in players" 
             :key="player.id"

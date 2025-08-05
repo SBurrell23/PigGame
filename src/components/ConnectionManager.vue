@@ -42,12 +42,21 @@ const joinGameId = ref('')
 const lobbyMode = ref('join') // 'join' or 'host'
 const allLobbyPlayers = ref([]) // All players in lobby (including host)
 const gameInProgress = ref(false) // Flag to track if game is in progress
+const copyNotification = ref(false) // Flag for copy notification
 
 // Utility function to copy text to clipboard
 const copyToClipboard = async (text) => {
   try {
     await navigator.clipboard.writeText(text)
     console.log('Copied to clipboard:', text)
+    
+    // Show notification
+    copyNotification.value = true
+    
+    // Hide notification after 1 second
+    setTimeout(() => {
+      copyNotification.value = false
+    }, 1000)
   } catch (error) {
     console.error('Failed to copy to clipboard:', error)
   }
@@ -605,7 +614,7 @@ defineExpose({
 
     <!-- Not in lobby - Choose host or join -->
     <div v-if="!state.isInLobby" class="space-y-4">
-      <div class="text-center">
+      <div class="text-center hidden sm:block">
         <h4 class="text-md font-medium text-gray-900 mb-3">Ready to play?</h4>
         <p class="text-sm text-gray-600 mb-6">Host a new game or join an existing lobby</p>
       </div>
@@ -657,7 +666,7 @@ defineExpose({
     <!-- In lobby -->
     <div v-else class="space-y-4">
       <!-- Lobby Info -->
-      <div class="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-4">
+      <div class="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-4 max-w-lg mx-auto">
         <div class="flex items-center justify-between mb-3">
           <h4 class="text-md font-semibold text-gray-900">
             {{ state.isHost ? '👑 Your Lobby' : '🎮 Joined Lobby' }}
@@ -679,12 +688,24 @@ defineExpose({
             <code class="px-3 py-2 bg-white border border-gray-300 text-gray-800 rounded text-lg font-mono flex-1 text-center">
               {{ state.lobbyId }}
             </code>
-            <button 
-              @click="copyToClipboard(state.lobbyId)"
-              class="px-3 py-2 bg-blue-500 text-white text-sm rounded hover:bg-blue-600 transition-colors flex items-center"
-            >
-              📋 Copy
-            </button>
+            <div class="relative">
+              <button 
+                @click="copyToClipboard(state.lobbyId)"
+                class="px-3 py-2 bg-blue-500 text-white text-sm rounded hover:bg-blue-600 transition-colors flex items-center"
+              >
+                📋 Copy
+              </button>
+              
+              <!-- Copy Notification -->
+              <div 
+                v-if="copyNotification"
+                class="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded shadow-lg whitespace-nowrap"
+              >
+                Copied!
+                <!-- Triangle pointer -->
+                <div class="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-2 border-r-2 border-t-2 border-transparent border-t-black"></div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

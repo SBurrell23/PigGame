@@ -213,21 +213,23 @@ onMounted(() => {
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         <!-- ConnectionManager - always rendered to maintain peer connections -->
-        <ConnectionManager 
-          ref="connectionManager"
-          :player-name="'Player 1'"
-          :style="{ 
-            display: currentView === 'game' ? 'none' : 'block',
-            visibility: isDisconnecting ? 'hidden' : 'visible'
-          }"
-          @peer-ready="onPeerReady"
-          @peer-connected="onPeerConnected" 
-          @peer-disconnected="onPeerDisconnected"
-          @data-received="onDataReceived"
-          @connection-error="onConnectionError"
-          @game-started="onGameStarted"
-          @host-disconnected-during-game="onHostDisconnectedDuringGame"
-        />
+        <div class="max-w-4xl mx-auto">
+          <ConnectionManager 
+            ref="connectionManager"
+            :player-name="'Player 1'"
+            :style="{ 
+              display: currentView === 'game' ? 'none' : 'block',
+              visibility: isDisconnecting ? 'hidden' : 'visible'
+            }"
+            @peer-ready="onPeerReady"
+            @peer-connected="onPeerConnected" 
+            @peer-disconnected="onPeerDisconnected"
+            @data-received="onDataReceived"
+            @connection-error="onConnectionError"
+            @game-started="onGameStarted"
+            @host-disconnected-during-game="onHostDisconnectedDuringGame"
+          />
+        </div>
         
         <!-- Disconnecting State -->
         <div v-if="isDisconnecting" class="max-w-md mx-auto mt-8">
