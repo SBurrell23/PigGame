@@ -23,7 +23,8 @@ const props = defineProps({
 
 // Emits
 const emit = defineEmits([
-  'leave-game'
+  'leave-game',
+  'game-ended'
 ])
 
 // Game state
@@ -35,6 +36,7 @@ const gameState = reactive({
   winner: null,
   dice: 1,
   isRolling: false,
+  isTurnEnding: false, // Flag to prevent actions during turn transitions (hold/pigout)
   lastAction: null,
   notification: null
 })
@@ -162,11 +164,11 @@ const isMyTurn = computed(() => {
 })
 
 const canRoll = computed(() => {
-  return isMyTurn.value && !gameState.isRolling && !gameState.gameEnded
+  return isMyTurn.value && !gameState.isRolling && !gameState.isTurnEnding && !gameState.gameEnded
 })
 
 const canHold = computed(() => {
-  return isMyTurn.value && gameState.currentTurnScore > 0 && !gameState.isRolling && !gameState.gameEnded
+  return isMyTurn.value && gameState.currentTurnScore > 0 && !gameState.isRolling && !gameState.isTurnEnding && !gameState.gameEnded
 })
 
 // Debug info
@@ -225,6 +227,7 @@ const rollDice = () => {
       // Handle dice result
       if (finalDice === 1) {
         // Pig out! Lose turn and current score
+        gameState.isTurnEnding = true // Immediately prevent further actions
         gameState.currentTurnScore = 0
         gameState.lastAction = 'pigout'
         
@@ -267,6 +270,9 @@ const rollDice = () => {
 const holdScore = () => {
   if (!canHold.value) return
   
+  // Immediately prevent further actions
+  gameState.isTurnEnding = true
+  
   // Add current turn score to player's total
   const currentPlayer = currentPlayerData.value
   if (currentPlayer) {
@@ -304,10 +310,9 @@ const holdScore = () => {
     players: players.value
   })
   
-  gameState.currentTurnScore = 0
   gameState.lastAction = 'held'
   
-  // End turn after brief delay to show notification
+  // End turn immediately - nextPlayer will reset currentTurnScore and isHolding
   setTimeout(() => {
     nextPlayer()
   }, 1500)
@@ -315,6 +320,10 @@ const holdScore = () => {
 
 const nextPlayer = () => {
   if (gameState.gameEnded) return
+  
+  // Reset turn state
+  gameState.currentTurnScore = 0
+  gameState.isTurnEnding = false
   
   // Update current player
   players.value[gameState.currentPlayer].isCurrentPlayer = false
@@ -411,6 +420,7 @@ const handleGameAction = (action) => {
       if (action.playerId !== props.connectionManager.state.peerId) {
         gameState.dice = action.dice
         gameState.currentTurnScore = 0
+        gameState.isTurnEnding = true // Prevent actions during pig out transition
         gameState.lastAction = 'pigout'
         
         const playerName = getPlayerName(action.playerId)
@@ -434,6 +444,7 @@ const handleGameAction = (action) => {
           holdingPlayer.score = action.newTotal
         }
         gameState.currentTurnScore = 0
+        gameState.isTurnEnding = false
         gameState.lastAction = 'held'
         
         const playerName = getPlayerName(action.playerId)
@@ -448,6 +459,8 @@ const handleGameAction = (action) => {
         })
         gameState.currentPlayer = action.currentPlayer
         gameState.currentRound = action.currentRound
+        gameState.currentTurnScore = 0
+        gameState.isTurnEnding = false
         gameState.lastAction = 'turn_change'
         
         const newCurrentPlayer = players.value[action.currentPlayer]
@@ -480,9 +493,62 @@ const handleGameAction = (action) => {
   }
 }
 
-// Expose function for parent to call when receiving game actions
+// Handle player disconnection during game
+const handlePlayerDisconnected = (disconnectedPlayerId) => {
+  console.log('Handling player disconnection:', disconnectedPlayerId)
+  
+  // Find and remove the disconnected player
+  const disconnectedPlayerIndex = players.value.findIndex(p => p.id === disconnectedPlayerId)
+  
+  if (disconnectedPlayerIndex !== -1) {
+    const disconnectedPlayer = players.value[disconnectedPlayerIndex]
+    
+    // Show notification about player leaving
+    showNotification(`${disconnectedPlayer.name} has left the game`, 'warning', 3000)
+    
+    // Remove player from the game
+    players.value.splice(disconnectedPlayerIndex, 1)
+    
+    // Adjust current player index if needed
+    if (gameState.currentPlayer >= disconnectedPlayerIndex) {
+      gameState.currentPlayer = Math.max(0, gameState.currentPlayer - 1)
+    }
+    
+    // If only one player left, end the game
+    if (players.value.length <= 1) {
+      gameState.gameEnded = true
+      if (players.value.length === 1) {
+        gameState.winner = players.value[0]
+        showNotification(`🏆 ${players.value[0].name} wins by default!`, 'success', 5000)
+      } else {
+        showNotification('Game ended - no players remaining', 'info', 3000)
+      }
+    } else {
+      // Make sure current player index is valid
+      if (gameState.currentPlayer >= players.value.length) {
+        gameState.currentPlayer = 0
+      }
+    }
+  }
+}
+
+// Handle host disconnection - end game and return to lobby
+const handleHostDisconnected = () => {
+  console.log('Host disconnected - ending game')
+  gameState.gameEnded = true
+  showNotification('Host disconnected - returning to lobby...', 'warning', 3000)
+  
+  // Emit event to parent to return to lobby
+  setTimeout(() => {
+    emit('game-ended')
+  }, 3000)
+}
+
+// Expose functions for parent to call
 defineExpose({
-  handleGameAction
+  handleGameAction,
+  handlePlayerDisconnected,
+  handleHostDisconnected
 })
 </script>
 
@@ -502,24 +568,26 @@ defineExpose({
     </div>
 
     <!-- Notification Display -->
-    <div 
-      v-if="gameState.notification" 
-      class="mb-4 p-3 rounded-lg border-l-4 transition-all duration-300"
-      :class="{
-        'bg-green-50 border-green-400 text-green-800': gameState.notification.type === 'success',
-        'bg-blue-50 border-blue-400 text-blue-800': gameState.notification.type === 'info',
-        'bg-red-50 border-red-400 text-red-800': gameState.notification.type === 'error',
-        'bg-yellow-50 border-yellow-400 text-yellow-800': gameState.notification.type === 'warning'
-      }"
-    >
-      <div class="flex items-center">
-        <div class="text-lg mr-2">
-          <span v-if="gameState.notification.type === 'success'">✅</span>
-          <span v-else-if="gameState.notification.type === 'info'">ℹ️</span>
-          <span v-else-if="gameState.notification.type === 'error'">❌</span>
-          <span v-else-if="gameState.notification.type === 'warning'">⚠️</span>
+    <div class="mb-4 h-16 flex items-center">
+      <div 
+        v-if="gameState.notification" 
+        class="w-full p-3 rounded-lg border-l-4 transition-all duration-300 ease-in-out transform"
+        :class="{
+          'bg-green-50 border-green-400 text-green-800': gameState.notification.type === 'success',
+          'bg-blue-50 border-blue-400 text-blue-800': gameState.notification.type === 'info',
+          'bg-red-50 border-red-400 text-red-800': gameState.notification.type === 'error',
+          'bg-yellow-50 border-yellow-400 text-yellow-800': gameState.notification.type === 'warning'
+        }"
+      >
+        <div class="flex items-center">
+          <div class="text-lg mr-2 flex-shrink-0">
+            <span v-if="gameState.notification.type === 'success'">✅</span>
+            <span v-else-if="gameState.notification.type === 'info'">ℹ️</span>
+            <span v-else-if="gameState.notification.type === 'error'">❌</span>
+            <span v-else-if="gameState.notification.type === 'warning'">⚠️</span>
+          </div>
+          <div class="font-medium text-sm leading-tight">{{ gameState.notification.message }}</div>
         </div>
-        <div class="font-medium">{{ gameState.notification.message }}</div>
       </div>
     </div>
 

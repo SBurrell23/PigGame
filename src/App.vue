@@ -31,10 +31,37 @@ const onPeerConnected = (event) => {
 
 const onPeerDisconnected = (event) => {
   console.log('Peer disconnected:', event)
+  
+  // If a peer disconnected during game, forward to GameBoard
+  if (currentView.value === 'game' && event.duringGame) {
+    if (gameBoardRef.value && gameBoardRef.value.handlePlayerDisconnected) {
+      gameBoardRef.value.handlePlayerDisconnected(event.peerId)
+    }
+  }
 }
 
 const onDataReceived = (event) => {
   console.log('Data received:', event)
+  
+  // Handle special game messages
+  if (event.data.type === 'HOST_LEFT_GAME') {
+    // Host left during game - return to lobby
+    console.log('Host left game, returning to lobby')
+    currentView.value = 'lobby'
+    gameData.value = null
+    if (connectionManager.value && connectionManager.value.resetGameState) {
+      connectionManager.value.resetGameState()
+    }
+    return
+  }
+  
+  if (event.data.type === 'PLAYER_DISCONNECTED') {
+    // Player disconnected during game
+    if (currentView.value === 'game' && gameBoardRef.value && gameBoardRef.value.handlePlayerDisconnected) {
+      gameBoardRef.value.handlePlayerDisconnected(event.data.playerId)
+    }
+    return
+  }
   
   // Handle game actions if we're in game mode
   if (currentView.value === 'game' && event.data.type === 'GAME_ACTION') {
@@ -55,6 +82,37 @@ const onGameStarted = (data) => {
 }
 
 const onLeaveGame = () => {
+  console.log('Player leaving game')
+  
+  // If host is leaving, end game for everyone
+  if (connectionManager.value?.state?.isHost && connectionManager.value.endGameAndDisconnectAll) {
+    connectionManager.value.endGameAndDisconnectAll()
+  }
+  
+  currentView.value = 'lobby'
+  gameData.value = null
+  
+  // Reset game state in connection manager
+  if (connectionManager.value && connectionManager.value.resetGameState) {
+    connectionManager.value.resetGameState()
+  }
+}
+
+const onHostDisconnectedDuringGame = () => {
+  console.log('Host disconnected during game')
+  
+  // If we're in game, let GameBoard handle it gracefully
+  if (currentView.value === 'game' && gameBoardRef.value && gameBoardRef.value.handleHostDisconnected) {
+    gameBoardRef.value.handleHostDisconnected()
+  } else {
+    // Otherwise just return to lobby immediately
+    currentView.value = 'lobby'
+    gameData.value = null
+  }
+}
+
+const onGameEnded = () => {
+  console.log('Game ended - returning to lobby')
   currentView.value = 'lobby'
   gameData.value = null
   
@@ -104,6 +162,7 @@ onMounted(() => {
           @data-received="onDataReceived"
           @connection-error="onConnectionError"
           @game-started="onGameStarted"
+          @host-disconnected-during-game="onHostDisconnectedDuringGame"
         />
         
         <!-- Lobby View -->
@@ -111,49 +170,7 @@ onMounted(() => {
           
           <!-- Left Column - Space for Connection Manager (rendered above) -->
           <div class="space-y-6">
-            <!-- Game State Display -->
-            <div class="bg-white rounded-lg shadow-md p-6">
-              <h3 class="text-lg font-semibold text-gray-900 mb-4">Game State</h3>
-              
-              <div class="space-y-3">
-                <div class="flex justify-between">
-                  <span class="text-sm font-medium text-gray-700">Game ID:</span>
-                  <span class="text-sm text-gray-600">
-                    {{ gameState.gameId || 'Not in game' }}
-                  </span>
-                </div>
-                
-                <div class="flex justify-between">
-                  <span class="text-sm font-medium text-gray-700">Players:</span>
-                  <span class="text-sm text-gray-600">
-                    {{ gameState.players.size }}
-                  </span>
-                </div>
-                
-                <div class="flex justify-between">
-                  <span class="text-sm font-medium text-gray-700">Game Started:</span>
-                  <span class="text-sm text-gray-600">
-                    {{ gameState.isGameStarted ? 'Yes' : 'No' }}
-                  </span>
-                </div>
-                
-                <div v-if="gameState.players.size > 0" class="mt-4">
-                  <h4 class="text-sm font-medium text-gray-700 mb-2">Connected Players:</h4>
-                  <div class="space-y-1">
-                    <div 
-                      v-for="[playerId, player] in gameState.players"
-                      :key="playerId"
-                      class="flex items-center justify-between text-xs bg-gray-50 p-2 rounded"
-                    >
-                      <span class="font-medium">{{ player.name }}</span>
-                      <span v-if="player.isHost" class="px-2 py-1 bg-blue-100 text-blue-800 rounded">
-                        Host
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <!-- Connection Manager area - rendered above with absolute positioning -->
           </div>
 
           <!-- Game Area -->
@@ -199,6 +216,7 @@ onMounted(() => {
             :is-host="connectionManager?.state?.isHost || false"
             :game-data="gameData"
             @leave-game="onLeaveGame"
+            @game-ended="onGameEnded"
           />
         </div>
         

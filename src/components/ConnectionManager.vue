@@ -304,9 +304,9 @@ const handleConnection = (conn) => {
     state.connections.delete(conn.peer)
     updateConnectedPeers()
     
-    // Only handle lobby updates if game is not in progress
+    // Handle disconnections differently based on whether game is in progress
     if (!gameInProgress.value) {
-      // If we're the host, broadcast lobby update to remaining players
+      // Lobby mode - handle lobby updates
       if (state.isHost) {
         setTimeout(() => broadcastLobbyUpdate(), 100)
       }
@@ -333,11 +333,37 @@ const handleConnection = (conn) => {
         }, 5000)
       }
     } else {
-      console.log('Game in progress, not handling lobby disconnect for:', conn.peer)
+      // Game mode - handle player disconnections during game
+      console.log('Player disconnected during game:', conn.peer)
+      
+      if (state.isHost) {
+        // Host handling player disconnection - notify remaining players
+        broadcast({
+          type: 'PLAYER_DISCONNECTED',
+          playerId: conn.peer,
+          timestamp: Date.now()
+        })
+      } else if (conn.peer === state.lobbyId) {
+        // Non-host player - check if host disconnected
+        console.log('Host disconnected during game - ending game for all players')
+        
+        // Host left during game - reset everything
+        gameInProgress.value = false
+        state.lobbyId = null
+        state.isInLobby = false
+        state.isHost = false
+        lobbyMode.value = 'join'
+        joinGameId.value = ''
+        allLobbyPlayers.value = []
+        
+        // Emit event to return to lobby
+        emit('host-disconnected-during-game')
+      }
     }
     
     emit('peer-disconnected', {
-      peerId: conn.peer
+      peerId: conn.peer,
+      duringGame: gameInProgress.value
     })
   })
 
@@ -470,6 +496,28 @@ const resetGameState = () => {
   console.log('Game state reset - lobby mode resumed')
 }
 
+// End game and disconnect all players (host only)
+const endGameAndDisconnectAll = () => {
+  if (!state.isHost) return
+  
+  console.log('Host ending game and disconnecting all players')
+  
+  // Broadcast game end message to all players
+  broadcast({
+    type: 'HOST_LEFT_GAME',
+    message: 'Host has left the game. Returning to lobby.',
+    timestamp: Date.now()
+  })
+  
+  // Reset game state
+  gameInProgress.value = false
+  
+  // Disconnect all players
+  setTimeout(() => {
+    disconnect()
+  }, 1000) // Small delay to ensure message is sent
+}
+
 // Lifecycle hooks
 onMounted(() => {
   console.log('ConnectionManager mounted - waiting for user action')
@@ -490,6 +538,7 @@ defineExpose({
   getConnectionInfo,
   startGame,
   resetGameState,
+  endGameAndDisconnectAll,
   // Reactive state access
   state: state,
   connectedPeers: connectedPeers,
