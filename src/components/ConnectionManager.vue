@@ -55,7 +55,7 @@ const copyToClipboard = async (text) => {
 
 // Generate a random game ID for hosting
 const generateGameId = () => {
-  return Math.random().toString(36).substr(2, 8).toUpperCase()
+  return Math.floor(100000 + Math.random() * 900000).toString()
 }
 
 // Get color name for player based on join order
@@ -145,7 +145,7 @@ const hostLobby = () => {
 // Join an existing game lobby
 const joinLobby = () => {
   if (joinGameId.value.trim()) {
-    state.lobbyId = joinGameId.value.trim().toUpperCase()
+    state.lobbyId = joinGameId.value.trim()
     state.isHost = false
     lobbyMode.value = 'join'
     initializePeer()
@@ -632,12 +632,12 @@ defineExpose({
           <div class="text-center">
             <div class="text-3xl mb-2">🎮</div>
             <h5 class="font-semibold text-gray-900 mb-2">Join Game</h5>
-            <p class="text-sm text-gray-600 mb-4">Enter a lobby ID to join an existing game</p>
+            <p class="text-sm text-gray-600 mb-4">Enter a lobby code to join an existing game</p>
             <div class="space-y-2">
               <input 
                 v-model="joinGameId"
                 type="text" 
-                placeholder="Enter Lobby ID"
+                placeholder="Enter Lobby Code"
                 class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-center font-mono"
                 @keyup.enter="joinLobby"
               >
@@ -673,7 +673,7 @@ defineExpose({
         <!-- Lobby ID -->
         <div class="mb-3">
           <label class="block text-sm font-medium text-gray-700 mb-1">
-            {{ state.isHost ? 'Share this Lobby ID:' : 'Lobby ID:' }}
+            {{ state.isHost ? 'Share Lobby Code' : 'Lobby Code' }}
           </label>
           <div class="flex items-center space-x-2">
             <code class="px-3 py-2 bg-white border border-gray-300 text-gray-800 rounded text-lg font-mono flex-1 text-center">
@@ -681,15 +681,11 @@ defineExpose({
             </code>
             <button 
               @click="copyToClipboard(state.lobbyId)"
-              class="px-3 py-2 bg-green-500 text-white text-sm rounded hover:bg-green-600 transition-colors flex items-center"
+              class="px-3 py-2 bg-blue-500 text-white text-sm rounded hover:bg-blue-600 transition-colors flex items-center"
             >
               📋 Copy
             </button>
           </div>
-        </div>
-
-        <div v-if="state.isHost" class="text-sm text-gray-600">
-          Share this ID with other players so they can join your lobby!
         </div>
       </div>
 
@@ -710,7 +706,6 @@ defineExpose({
                   <div class="text-sm font-medium text-gray-900">
                     You (Green)
                   </div>
-                  <code class="text-xs text-gray-500">{{ state.peerId }}</code>
                 </div>
               </div>
               <div class="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded">
@@ -731,7 +726,6 @@ defineExpose({
                   <div class="text-sm font-medium text-gray-900">
                     {{ getPlayerColorName(index + 1) }}
                   </div>
-                  <code class="text-xs text-gray-500">{{ peerId }}</code>
                 </div>
               </div>
               <div class="flex items-center space-x-2">
@@ -762,7 +756,6 @@ defineExpose({
                   <div class="text-sm font-medium text-gray-900">
                     {{ player.peerId === state.peerId ? `You (${player.name})` : player.name }}
                   </div>
-                  <code class="text-xs text-gray-500">{{ player.peerId }}</code>
                 </div>
               </div>
               <div class="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded">
@@ -784,9 +777,6 @@ defineExpose({
       <!-- Game Controls (if host) -->
       <div v-if="state.isHost && connectedPeers.length > 0" class="bg-green-50 border border-green-200 rounded-lg p-4">
         <h4 class="text-md font-medium text-green-900 mb-3">🎲 Ready to Start?</h4>
-        <p class="text-sm text-green-700 mb-3">
-          You have {{ connectedPeers.length }} player{{ connectedPeers.length === 1 ? '' : 's' }} in your lobby.
-        </p>
         <button 
           @click="startGame"
           class="w-full px-4 py-2 bg-green-500 text-white font-medium rounded hover:bg-green-600 transition-colors"
