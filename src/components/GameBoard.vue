@@ -38,6 +38,7 @@ const gameState = reactive({
   dice: 1,
   isRolling: false,
   isTurnEnding: false, // Flag to prevent actions during turn transitions (hold/pigout)
+  isPiggedOut: false, // Flag to show pig out indicator
   lastAction: null,
   notification: null
 })
@@ -308,35 +309,63 @@ const rollDice = () => {
     
     // Handle dice result
     if (finalDice === 1) {
-      // Pig out! Lose turn and current score
-      gameState.isTurnEnding = true // Immediately prevent further actions
-      gameState.currentTurnScore = 0
-      gameState.lastAction = 'pigout'
-      
-      showNotification(`💥 ${playerName} rolled a 1! Pig out! Turn lost!`, 'error', 4000)
-      
-      // Send pig out result to other players using host-relay pattern
-      if (props.isHost) {
-        broadcastGameAction({
-          type: 'PIG_OUT',
-          playerId: props.connectionManager.state.peerId,
-          playerName: props.playerName,
-          dice: finalDice
-        })
+      // Check if this is the first roll of the turn (no points accumulated yet)
+      if (gameState.currentTurnScore === 0) {
+        // First roll protection - just roll again, no pig out
+        showNotification(`🎲 ${playerName} rolled a 1 on first roll - roll again! (No pig out)`, 'info', 3000)
+        
+        // Send first roll protection to other players using host-relay pattern
+        if (props.isHost) {
+          broadcastGameAction({
+            type: 'FIRST_ROLL_PROTECTION',
+            playerId: props.connectionManager.state.peerId,
+            playerName: props.playerName,
+            dice: finalDice
+          })
+        } else {
+          // Non-host requests host to broadcast
+          broadcastGameAction({
+            type: 'REQUEST_FIRST_ROLL_PROTECTION',
+            playerId: props.connectionManager.state.peerId,
+            playerName: props.playerName,
+            dice: finalDice
+          })
+        }
+        
+        // No pig out, just continue the turn
+        gameState.lastAction = 'first_roll_protection'
       } else {
-        // Non-host requests host to broadcast
-        broadcastGameAction({
-          type: 'REQUEST_PIG_OUT',
-          playerId: props.connectionManager.state.peerId,
-          playerName: props.playerName,
-          dice: finalDice
-        })
+        // Pig out! Lose turn and current score (only if they had points to lose)
+        gameState.isTurnEnding = true // Immediately prevent further actions
+        gameState.isPiggedOut = true // Show pig out indicator
+        gameState.currentTurnScore = 0
+        gameState.lastAction = 'pigout'
+        
+        showNotification(`💥 ${playerName} rolled a 1! Pig out! Turn lost!`, 'error', 4000)
+        
+        // Send pig out result to other players using host-relay pattern
+        if (props.isHost) {
+          broadcastGameAction({
+            type: 'PIG_OUT',
+            playerId: props.connectionManager.state.peerId,
+            playerName: props.playerName,
+            dice: finalDice
+          })
+        } else {
+          // Non-host requests host to broadcast
+          broadcastGameAction({
+            type: 'REQUEST_PIG_OUT',
+            playerId: props.connectionManager.state.peerId,
+            playerName: props.playerName,
+            dice: finalDice
+          })
+        }
+        
+        // End turn after a delay (extended for dramatic effect)
+        setTimeout(() => {
+          nextPlayer()
+        }, 4000)
       }
-      
-      // End turn after a delay
-      setTimeout(() => {
-        nextPlayer()
-      }, 2000)
     } else {
       // Successful roll - add to current turn score
       gameState.currentTurnScore += finalDice
@@ -424,10 +453,8 @@ const bankScore = () => {
   
   gameState.lastAction = 'banked'
   
-  // End turn immediately - nextPlayer will reset currentTurnScore and isHolding
-  setTimeout(() => {
-    nextPlayer()
-  }, 1500)
+  // End turn immediately for banking - no delay needed
+  nextPlayer()
 }
 
 const nextPlayer = () => {
@@ -439,6 +466,7 @@ const nextPlayer = () => {
   // Reset turn state
   gameState.currentTurnScore = 0
   gameState.isTurnEnding = false
+  gameState.isPiggedOut = false // Reset pig out indicator
   
   // Update current player
   players.value[gameState.currentPlayer].isCurrentPlayer = false
@@ -582,10 +610,21 @@ const handleGameAction = (action) => {
         gameState.dice = action.dice
         gameState.currentTurnScore = 0
         gameState.isTurnEnding = true // Prevent actions during pig out transition
+        gameState.isPiggedOut = true // Show pig out indicator for all players
         gameState.lastAction = 'pigout'
         
         const playerName = getPlayerName(action.playerId)
         showNotification(`💥 ${playerName} rolled a 1! Pig out! Turn lost!`, 'error', 3500)
+      }
+      break
+      
+    case 'FIRST_ROLL_PROTECTION':
+      if (action.playerId !== props.connectionManager.state.peerId) {
+        gameState.dice = action.dice
+        gameState.lastAction = 'first_roll_protection'
+        
+        const playerName = getPlayerName(action.playerId)
+        showNotification(`🎲 ${playerName} rolled a 1 on first roll - roll again! (No pig out)`, 'info', 2500)
       }
       break
     
@@ -687,6 +726,7 @@ const handleGameAction = (action) => {
       gameState.currentRound = action.currentRound
       gameState.currentTurnScore = 0
       gameState.isTurnEnding = false
+      gameState.isPiggedOut = false // Reset pig out indicator
       gameState.lastAction = 'turn_change'
       
       const newCurrentPlayer = players.value[action.currentPlayer]
@@ -813,6 +853,30 @@ const handleGameAction = (action) => {
       }
       break
       
+    case 'REQUEST_FIRST_ROLL_PROTECTION':
+      // Only host handles this request and broadcasts to everyone
+      if (props.isHost) {
+        console.log('Host received REQUEST_FIRST_ROLL_PROTECTION from:', action.playerId)
+        
+        // Broadcast the first roll protection to everyone (including the requester)
+        broadcastGameAction({
+          type: 'FIRST_ROLL_PROTECTION',
+          playerId: action.playerId,
+          playerName: action.playerName,
+          dice: action.dice
+        })
+        
+        // Update host's local game state
+        gameState.dice = action.dice
+        gameState.lastAction = 'first_roll_protection'
+        
+        const playerName = getPlayerName(action.playerId)
+        showNotification(`🎲 ${playerName} rolled a 1 on first roll - roll again! (No pig out) (via host)`, 'info', 2500)
+      } else {
+        console.log('Non-host received REQUEST_FIRST_ROLL_PROTECTION - ignoring')
+      }
+      break
+      
     case 'GAME_END':
       gameState.gameEnded = true
       gameState.winner = action.winner
@@ -927,7 +991,8 @@ defineExpose({
             :key="player.id"
             class="relative bg-white rounded-xl shadow-lg border-l-4 p-4 transition-all duration-300 hover:shadow-xl"
             :class="{
-              'ring-4 ring-yellow-300 ring-opacity-50 transform scale-105 bg-gradient-to-r from-yellow-50 to-orange-50': player.isCurrentPlayer && !gameState.gameEnded,
+              'ring-4 ring-pink-300 ring-opacity-50 transform scale-105 bg-gradient-to-r from-pink-50 to-red-50': player.isCurrentPlayer && !gameState.gameEnded && gameState.isPiggedOut,
+              'ring-4 ring-yellow-300 ring-opacity-50 transform scale-105 bg-gradient-to-r from-yellow-50 to-orange-50': player.isCurrentPlayer && !gameState.gameEnded && !gameState.isPiggedOut,
               'ring-4 ring-green-300 ring-opacity-50 bg-gradient-to-r from-green-50 to-emerald-50': gameState.winner && player.id === gameState.winner.id,
               [getColorBorderClass(player.name)]: true
             }"
@@ -935,9 +1000,13 @@ defineExpose({
             <!-- Current Player Indicator -->
             <div 
               v-if="player.isCurrentPlayer && !gameState.gameEnded"
-              class="absolute -top-2 -right-2 bg-yellow-400 text-yellow-900 text-xs font-bold px-2 py-1 rounded-full shadow-lg animate-pulse"
+              class="absolute -top-2 -right-2 text-xs font-bold px-2 py-1 rounded-full shadow-lg animate-pulse"
+              :class="{
+                'bg-pink-500 text-white': gameState.isPiggedOut,
+                'bg-yellow-400 text-yellow-900': !gameState.isPiggedOut
+              }"
             >
-              TURN
+              {{ gameState.isPiggedOut ? 'PIG!' : 'TURN' }}
             </div>
             
             <!-- Winner Crown -->
@@ -1018,7 +1087,7 @@ defineExpose({
           <!-- Game Over Actions -->
           <div v-if="gameState.gameEnded" class="space-y-4">
             <!-- Winner Announcement -->
-            <div v-if="gameState.winner" class="mb-6 p-6 bg-gradient-to-r from-green-100 to-emerald-100 border border-green-200 rounded-xl text-center">
+            <div v-if="gameState.winner" class="mb-6 mt-6 p-6 bg-gradient-to-r from-green-100 to-emerald-100 border border-green-200 rounded-xl text-center">
               <div class="text-4xl mb-2">🎉</div>
               <h3 class="text-3xl font-bold text-green-900 mb-2">Game Over!</h3>
               <p class="text-xl text-green-700">
@@ -1070,9 +1139,9 @@ defineExpose({
           </summary>
           <div class="p-4 bg-white">
             <ul class="text-sm text-gray-600 space-y-2">
-              <li class="flex items-center"><span class="text-green-500 mr-2">🎲</span> Roll the dice to accumulate points for your turn</li>
-              <li class="flex items-center"><span class="text-red-500 mr-2">💥</span> Rolling a 1 ends your turn and loses all points for that turn</li>
-              <li class="flex items-center"><span class="text-yellow-500 mr-2">💰</span> Click "Bank Score" to save your turn points and pass to next player</li>
+              <li class="flex items-center"><span class="text-green-500 mr-2">🎲</span> Roll the dice to accumulate points for your turn.</li>
+              <li class="flex items-center"><span class="text-yellow-500 mr-2">💰</span> "Bank Points" to save your turn points and pass to next player.</li>
+              <li class="flex items-center"><span class="text-red-500 mr-2">🐷</span> Rolling a 1 when you have turn points will end your turn and cause you to lose them!</li>
               <li class="flex items-center"><span class="text-purple-500 mr-2">🏆</span> First player to reach 100 points wins!</li>
             </ul>
           </div>
