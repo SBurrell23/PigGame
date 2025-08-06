@@ -49,6 +49,7 @@ const gameState = reactive({
 const players = ref([])
 const gameStarted = ref(false)
 const nextPlayerTimeout = ref(null) // Track the nextPlayer timeout to clear it if needed
+const gameStartingPlayer = ref(0) // Track which player should start the next game
 
 // Initialize players from connection manager
 onMounted(() => {
@@ -347,7 +348,7 @@ const bankScore = () => {
     showNotification(`💰 ${playerName} banked ${bankedScore} points! Total: ${currentPlayer.score}`, 'success', 3000)
     
     // Check for win condition
-    if (currentPlayer.score >= 100) {
+    if (currentPlayer.score >= 6) {
       gameState.gameEnded = true
       gameState.winner = currentPlayer
       gameState.lastAction = 'won'
@@ -496,25 +497,36 @@ const forceSync = () => {
 }
 
 const newGame = () => {
-  // Reset game state
-  gameState.currentPlayer = 0
+  // Rotate starting player for fairness
+  gameStartingPlayer.value = (gameStartingPlayer.value + 1) % players.value.length
+  
+  // Reset game state completely
+  gameState.currentPlayer = gameStartingPlayer.value
   gameState.currentRound = 1
   gameState.currentTurnScore = 0
   gameState.gameEnded = false
   gameState.winner = null
   gameState.dice = 1
   gameState.isRolling = false
+  gameState.isTurnEnding = false  // Critical: Reset turn ending flag
+  gameState.isPiggedOut = false   // Critical: Reset pig out flag
+  gameState.isProcessingNextPlayer = false  // Critical: Reset processing flag
+  gameState.lastAction = null
   
-  // Reset player scores
+  // Reset player scores and set current player
   players.value.forEach((player, index) => {
     player.score = 0
-    player.isCurrentPlayer = index === 0
+    player.isCurrentPlayer = index === gameStartingPlayer.value
   })
+  
+  const startingPlayerName = getPlayerName(players.value[gameStartingPlayer.value]?.id)
+  showNotification(`🎮 New Game Started! ${startingPlayerName} goes first!`, 'info', 3000)
   
   broadcastGameAction({
     type: 'NEW_GAME',
     gameState: { ...gameState },
-    players: players.value
+    players: players.value,
+    startingPlayer: gameStartingPlayer.value
   })
 }
 
@@ -896,9 +908,23 @@ const handleGameAction = (action) => {
       break
       
     case 'NEW_GAME':
+      // Reset all game state from the broadcast
       Object.assign(gameState, action.gameState)
       players.value = action.players
-      showNotification(`🎮 New game started!`, 'info', 2000)
+      
+      // Update starting player tracker if provided
+      if (action.startingPlayer !== undefined) {
+        gameStartingPlayer.value = action.startingPlayer
+      }
+      
+      // Ensure all critical flags are reset for clean state
+      gameState.isTurnEnding = false
+      gameState.isPiggedOut = false
+      gameState.isProcessingNextPlayer = false
+      gameState.isRolling = false
+      
+      const startingPlayerName = getPlayerName(players.value[gameState.currentPlayer]?.id)
+      showNotification(`🎮 New game started! ${startingPlayerName} goes first!`, 'info', 3000)
       break
   }
 }
@@ -974,7 +1000,7 @@ defineExpose({
             <!-- Mobile: Round and Race on same line, Desktop: stacked -->
             <div class="flex items-baseline space-x-2 sm:block sm:space-x-0">
               <div class="text-lg font-bold text-gray-800">Round {{ gameState.currentRound }}</div>
-              <div class="text-sm text-gray-600">Race to 100 points!</div>
+              <div class="text-sm text-gray-600">Race to 6 points!</div>
             </div>
           </div>
         </div>
