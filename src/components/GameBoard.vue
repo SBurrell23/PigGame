@@ -40,6 +40,7 @@ const gameState = reactive({
   isRolling: false,
   isTurnEnding: false, // Flag to prevent actions during turn transitions (hold/pigout)
   isPiggedOut: false, // Flag to show pig out indicator
+  isProcessingNextPlayer: false, // Flag to prevent duplicate nextPlayer calls
   lastAction: null,
   notification: null
 })
@@ -47,6 +48,7 @@ const gameState = reactive({
 // Players array from connection manager
 const players = ref([])
 const gameStarted = ref(false)
+const nextPlayerTimeout = ref(null) // Track the nextPlayer timeout to clear it if needed
 
 // Initialize players from connection manager
 onMounted(() => {
@@ -367,8 +369,9 @@ const handleDiceResult = (finalDice) => {
         })
       }
       
-      // End turn after a delay (extended for dramatic effect)
-      setTimeout(() => {
+      // Everyone who pigs out calls nextPlayer after delay
+      nextPlayerTimeout.value = setTimeout(() => {
+        console.log('HOST PIG OUT: About to call nextPlayer(), isHost:', props.isHost, 'gameEnded:', gameState.gameEnded)
         nextPlayer()
       }, 4000)
     }
@@ -463,7 +466,25 @@ const bankScore = () => {
 }
 
 const nextPlayer = () => {
-  if (gameState.gameEnded) return
+  console.log('nextPlayer called - gameEnded:', gameState.gameEnded, 'isHost:', props.isHost, 'isProcessingNextPlayer:', gameState.isProcessingNextPlayer)
+  if (gameState.gameEnded) {
+    console.log('nextPlayer: Early return because gameEnded is true')
+    return
+  }
+  
+  // Prevent multiple simultaneous nextPlayer calls
+  if (gameState.isProcessingNextPlayer) {
+    console.log('nextPlayer: Already processing nextPlayer, ignoring duplicate call')
+    return
+  }
+  
+  // Clear the timeout since we're processing now
+  if (nextPlayerTimeout.value) {
+    clearTimeout(nextPlayerTimeout.value)
+    nextPlayerTimeout.value = null
+  }
+  
+  gameState.isProcessingNextPlayer = true
   
   console.log('nextPlayer called - current player before:', gameState.currentPlayer)
   console.log('Players array:', players.value.map(p => ({ id: p.id, name: p.name })))
@@ -520,6 +541,7 @@ const nextPlayer = () => {
   }
   
   gameState.lastAction = 'turn_change'
+  gameState.isProcessingNextPlayer = false // Reset the flag
 }
 
 const broadcastGameAction = (action) => {
@@ -612,6 +634,13 @@ const handleGameAction = (action) => {
       
     case 'PIG_OUT':
       if (action.playerId !== props.connectionManager.state.peerId) {
+        // Clear any pending nextPlayer timeout since someone else pigged out
+        if (nextPlayerTimeout.value) {
+          console.log('Clearing pending nextPlayer timeout because someone else pigged out')
+          clearTimeout(nextPlayerTimeout.value)
+          nextPlayerTimeout.value = null
+        }
+        
         gameState.dice = action.dice
         gameState.currentTurnScore = 0
         gameState.isTurnEnding = true // Prevent actions during pig out transition
@@ -736,8 +765,10 @@ const handleGameAction = (action) => {
       })
       gameState.currentPlayer = action.currentPlayer
       gameState.currentRound = action.currentRound
-      gameState.currentTurnScore = 0
+      gameState.currentTurnScore = 0  // Critical: Reset turn score for new player
       gameState.isTurnEnding = false
+      
+      console.log('New current player:', players.value[gameState.currentPlayer])
       gameState.isPiggedOut = false // Reset pig out indicator
       gameState.lastAction = 'turn_change'
       
@@ -862,6 +893,8 @@ const handleGameAction = (action) => {
         
         const playerName = getPlayerName(action.playerId)
         showNotification(`💥 ${playerName} rolled a 1! Pig out! Turn lost! (via host)`, 'error', 3500)
+        
+        // NOTE: Do NOT call nextPlayer() here - the original pig-out player already did it
       } else {
         console.log('Non-host received REQUEST_PIG_OUT - ignoring')
       }

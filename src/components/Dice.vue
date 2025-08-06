@@ -37,9 +37,9 @@ const currentValue = ref(props.value)
 
 // Size mapping
 const sizeMapping = {
-  small: { size: 60, pipSize: 6 },
-  medium: { size: 80, pipSize: 8 },
-  large: { size: 100, pipSize: 10 }
+  small: { size: 60, pipSize: 7 },
+  medium: { size: 80, pipSize: 9 },
+  large: { size: 100, pipSize: 12 }
 }
 
 // Computed dice size
@@ -53,17 +53,26 @@ const startRollAnimation = () => {
   
   // Animation parameters
   const animationDuration = 1500 // 1.5 seconds (must match external game logic)
-  const changeInterval = 45 // Change dice face every 45ms (faster face changes)
+  const changeInterval = 32 // Change dice face every x ms
   const startTime = Date.now()
   
   // Always use finalResult if provided, otherwise wait for it to be set
   const finalValue = props.finalResult !== null ? props.finalResult : props.value
   
   // Pre-generate random intermediate values for animation (just for visual effect)
+  // Ensure each value is different from the previous one
   const intermediateValues = []
   const totalSteps = Math.floor(animationDuration / changeInterval)
+  let lastValue = currentValue.value
+  
   for (let i = 0; i < totalSteps; i++) {
-    intermediateValues.push(Math.floor(Math.random() * 6) + 1)
+    let newValue
+    do {
+      newValue = Math.floor(Math.random() * 6) + 1
+    } while (newValue === lastValue)
+    
+    intermediateValues.push(newValue)
+    lastValue = newValue
   }
   
   let currentStep = 0
@@ -181,8 +190,20 @@ const getDotPositions = (value) => {
         height: diceSize.size + 'px'
       }"
     >
-      <!-- Dice pips (dots) -->
+      <!-- Dice pips (dots) or pig snout for 1 -->
       <div
+        v-if="currentValue === 1"
+        class="dice-pig-snout"
+        :style="{
+          left: '50%',
+          top: '46%',
+          fontSize: (diceSize.size * 0.4) + 'px'
+        }"
+      >
+        🐷
+      </div>
+      <div
+        v-else
         v-for="(pip, index) in getDotPositions(currentValue)"
         :key="index"
         class="dice-pip"
@@ -253,6 +274,13 @@ const getDotPositions = (value) => {
     0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
+.dice-pig-snout {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  user-select: none;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+}
+
 /* Size variants */
 .dice-small {
   border-radius: 12%;
@@ -271,26 +299,23 @@ const getDotPositions = (value) => {
 
 /* Enhanced rolling animation with buzzing/shaking effect */
 @keyframes diceRoll {
-  0% { transform: translate(0, 0) rotate(0deg) scale(1); }
-  8% { transform: translate(-3px, 2px) rotate(4deg) scale(1.02); }
-  16% { transform: translate(4px, -1px) rotate(-3deg) scale(0.98); }
-  24% { transform: translate(-1px, -4px) rotate(5deg) scale(1.01); }
-  32% { transform: translate(2px, 3px) rotate(-2deg) scale(0.99); }
-  40% { transform: translate(-4px, 1px) rotate(6deg) scale(1.03); }
-  48% { transform: translate(3px, -3px) rotate(-4deg) scale(0.97); }
-  56% { transform: translate(-2px, 4px) rotate(3deg) scale(1.01); }
-  64% { transform: translate(4px, -2px) rotate(-5deg) scale(0.98); }
-  72% { transform: translate(-3px, -1px) rotate(2deg) scale(1.02); }
-  80% { transform: translate(1px, 3px) rotate(-3deg) scale(0.99); }
-  88% { transform: translate(-1px, -2px) rotate(4deg) scale(1.01); }
-  96% { transform: translate(2px, 1px) rotate(-1deg) scale(0.99); }
-  100% { transform: translate(0, 0) rotate(0deg) scale(1); }
+  0% { transform: translate(0, 0); }
+  10% { transform: translate(-6px, -2px); }
+  20% { transform: translate(6px, 2px); }
+  30% { transform: translate(-5px, -3px); }
+  40% { transform: translate(5px, 1px); }
+  50% { transform: translate(-4px, 2px); }
+  60% { transform: translate(4px, -2px); }
+  70% { transform: translate(-5px, 1px); }
+  80% { transform: translate(5px, -1px); }
+  90% { transform: translate(-3px, 2px); }
+  100% { transform: translate(0, 0); }
 }
 
 /* Responsive hover effects */
 @media (hover: hover) {
   .dice-clickable:hover {
-    border-color: #007bff;
+    border-color: #cc72cf;
     background: linear-gradient(135deg, #ffffff 0%, #f1f3f4 50%, #e8eaed 100%);
   }
 }
