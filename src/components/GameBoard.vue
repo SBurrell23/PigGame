@@ -990,7 +990,12 @@ defineExpose({
 
       <!-- Players Scoreboard - Moved to Top -->
       <div class="mb-8">
-        <div class="grid gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+        <div 
+          class="grid gap-5 w-full grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
+          :class="{
+            'lg:grid-cols-2': players.length === 4
+          }"
+        >
           <div 
             v-for="player in players" 
             :key="player.id"
