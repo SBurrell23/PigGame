@@ -963,8 +963,8 @@ defineExpose({
 </script>
 
 <template>
-  <div class="game-board min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 p-4 pt-0">
-    <div class="max-w-6xl mx-auto">
+  <div class="game-board min-h-screen bg-gray-100">
+    <div class="max-w-6xl mx-auto p-6 sm:p-8 rounded-2xl">
       
       <!-- Top Bar -->
       <div class="flex items-center justify-between mb-6">
@@ -994,7 +994,8 @@ defineExpose({
           <div 
             v-for="player in players" 
             :key="player.id"
-            class="relative bg-white rounded-xl shadow-lg border-l-4 p-4 transition-all duration-300 hover:shadow-xl"
+            class="relative bg-white rounded-xl border-l-8 p-4 transition-all duration-300 hover:shadow-xl"
+            :style="!(player.isCurrentPlayer && !gameState.gameEnded) && !(gameState.winner && player.id === gameState.winner.id) ? 'box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.05);' : ''"
             :class="{
               'ring-4 ring-pink-300 ring-opacity-50 transform scale-105 hover:scale-105 bg-gradient-to-r from-pink-50 to-red-50': player.isCurrentPlayer && !gameState.gameEnded && gameState.isPiggedOut,
               'ring-4 ring-yellow-300 ring-opacity-50 transform scale-105 hover:scale-105 bg-gradient-to-r from-yellow-50 to-orange-50': player.isCurrentPlayer && !gameState.gameEnded && !gameState.isPiggedOut,
@@ -1058,7 +1059,7 @@ defineExpose({
 
       <!-- Dice and Actions Area -->
       <div class="mb-8">
-        <div class="bg-white rounded-2xl shadow-xl p-8 text-center">
+        <div class="bg-white rounded-xl shadow-md border border-gray-200 p-8 text-center">
           <!-- Dice Component -->
           <div class="">
             <Dice 
@@ -1165,11 +1166,21 @@ defineExpose({
         </details>
       </div>
 
-    </div>
+      </div>
   </div>
 </template>
 
 <style scoped>
+/* Main game card styling */
+.game-board .max-w-6xl {
+  backdrop-filter: blur(10px);
+  background: white;
+  box-shadow: 
+    0 20px 25px -5px rgba(0, 0, 0, 0.1), 
+    0 10px 10px -5px rgba(0, 0, 0, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
 /* Custom animations */
 @keyframes pulse {
   0%, 100% {
@@ -1249,7 +1260,7 @@ defineExpose({
 /* Mobile responsiveness improvements */
 @media (max-width: 640px) {
   .game-board {
-    padding: 1rem;
+    padding: .25rem;
     padding-top:0px;
   }
   
@@ -1269,8 +1280,8 @@ defineExpose({
 }
 
 /* Enhanced card borders */
-.game-board .border-l-4 {
-  border-left-width: 6px;
+.game-board .border-l-8 {
+  border-left-width: 8px;
 }
 
 /* Winner celebration effect */

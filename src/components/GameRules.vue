@@ -1,6 +1,6 @@
 <template>
-  <details class="bg-white rounded-xl shadow-md overflow-hidden">
-    <summary class="p-4 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors font-semibold text-gray-700">
+  <details class="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
+    <summary class="p-4 bg-white cursor-pointer hover:bg-gray-50 transition-colors font-semibold text-gray-700">
       📖 How to Play
     </summary>
     <div class="p-4 bg-white">
