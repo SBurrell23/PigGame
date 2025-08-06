@@ -348,7 +348,7 @@ const bankScore = () => {
     showNotification(`💰 ${playerName} banked ${bankedScore} points! Total: ${currentPlayer.score}`, 'success', 3000)
     
     // Check for win condition
-    if (currentPlayer.score >= 6) {
+    if (currentPlayer.score >= 100) {
       gameState.gameEnded = true
       gameState.winner = currentPlayer
       gameState.lastAction = 'won'
@@ -1000,7 +1000,7 @@ defineExpose({
             <!-- Mobile: Round and Race on same line, Desktop: stacked -->
             <div class="flex items-baseline space-x-2 sm:block sm:space-x-0">
               <div class="text-lg font-bold text-gray-800">Round {{ gameState.currentRound }}</div>
-              <div class="text-sm text-gray-600">Race to 6 points!</div>
+              <div class="text-sm text-gray-600">Race to 100 points!</div>
             </div>
           </div>
         </div>
