@@ -213,7 +213,7 @@ onMounted(() => {
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         <!-- ConnectionManager - always rendered to maintain peer connections -->
-        <div class="max-w-4xl mx-auto">
+        <div class="max-w-5xl mx-auto">
           <ConnectionManager 
             ref="connectionManager"
             :player-name="'Player 1'"
@@ -241,7 +241,7 @@ onMounted(() => {
         </div>
         
         <!-- Lobby View -->
-        <div v-else-if="currentView === 'lobby'" class="max-w-4xl mx-auto">
+        <div v-else-if="currentView === 'lobby'" class="max-w-5xl mx-auto">
           
           <!-- Game Rules Card -->
           <div class="mt-8">
@@ -251,7 +251,7 @@ onMounted(() => {
         </div>
 
         <!-- Game View -->
-        <div v-else-if="currentView === 'game'" class="max-w-4xl mx-auto">
+        <div v-else-if="currentView === 'game'" class="max-w-5xl mx-auto">
           <GameBoard 
             ref="gameBoardRef"
             :connection-manager="connectionManager"

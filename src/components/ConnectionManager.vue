@@ -666,7 +666,7 @@ defineExpose({
     <!-- In lobby -->
     <div v-else class="space-y-4">
       <!-- Lobby Info -->
-      <div class="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-4 max-w-lg mx-auto">
+      <div class="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-4 max-w-md mx-auto">
         <div class="flex items-center justify-between mb-3">
           <h4 class="text-md font-semibold text-gray-900">
             {{ state.isHost ? '👑 Your Lobby' : '🎮 Joined Lobby' }}
@@ -711,7 +711,7 @@ defineExpose({
       </div>
 
       <!-- Players in Lobby -->
-      <div class="bg-gray-50 rounded-lg p-4">
+      <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
         <h4 class="text-md font-medium text-gray-900 mb-3">
           👥 Players in Lobby ({{ state.isHost ? connectedPeers.length + 1 : allLobbyPlayers.length }})
         </h4>

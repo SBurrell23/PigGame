@@ -305,6 +305,18 @@ const handleDiceResult = (finalDice) => {
       playerName: playerName,
       dice: finalDice
     })
+    
+    // Host should also process its own dice result through the centralized logic
+    // by sending itself a REQUEST_DICE_ROLLING_END message
+    const action = {
+      playerId: props.connectionManager.state.peerId,
+      playerName: playerName,
+      dice: finalDice
+    }
+    
+    // Process the host's own dice result through the same centralized logic
+    // as non-host players to avoid duplicate processing
+    handleGameAction({ type: 'REQUEST_DICE_ROLLING_END', ...action })
   } else {
     // Non-host requests host to broadcast
     broadcastGameAction({
@@ -315,93 +327,8 @@ const handleDiceResult = (finalDice) => {
     })
   }
   
-  // Handle dice result logic
-  if (finalDice === 1) {
-    // Check if this is the first roll of the turn (no points accumulated yet)
-    if (gameState.currentTurnScore === 0) {
-      // First roll protection - just roll again, no pig out
-      showNotification(`🎲 ${playerName} rolled a 1 on first roll - roll again! (No pig out)`, 'info', 3000)
-      
-      // Send first roll protection to other players using host-relay pattern
-      if (props.isHost) {
-        broadcastGameAction({
-          type: 'FIRST_ROLL_PROTECTION',
-          playerId: props.connectionManager.state.peerId,
-          playerName: props.playerName,
-          dice: finalDice
-        })
-      } else {
-        // Non-host requests host to broadcast
-        broadcastGameAction({
-          type: 'REQUEST_FIRST_ROLL_PROTECTION',
-          playerId: props.connectionManager.state.peerId,
-          playerName: props.playerName,
-          dice: finalDice
-        })
-      }
-      
-      // No pig out, just continue the turn
-      gameState.lastAction = 'first_roll_protection'
-    } else {
-      // Pig out! Lose turn and current score (only if they had points to lose)
-      gameState.isTurnEnding = true // Immediately prevent further actions
-      gameState.isPiggedOut = true // Show pig out indicator
-      gameState.currentTurnScore = 0
-      gameState.lastAction = 'pigout'
-      
-      showNotification(`💥 ${playerName} rolled a 1! Pig out! Turn lost!`, 'error', 4000)
-      
-      // Send pig out result to other players using host-relay pattern
-      if (props.isHost) {
-        broadcastGameAction({
-          type: 'PIG_OUT',
-          playerId: props.connectionManager.state.peerId,
-          playerName: props.playerName,
-          dice: finalDice
-        })
-      } else {
-        // Non-host requests host to broadcast
-        broadcastGameAction({
-          type: 'REQUEST_PIG_OUT',
-          playerId: props.connectionManager.state.peerId,
-          playerName: props.playerName,
-          dice: finalDice
-        })
-      }
-      
-      // Everyone who pigs out calls nextPlayer after delay
-      nextPlayerTimeout.value = setTimeout(() => {
-        console.log('HOST PIG OUT: About to call nextPlayer(), isHost:', props.isHost, 'gameEnded:', gameState.gameEnded)
-        nextPlayer()
-      }, 4000)
-    }
-  } else {
-    // Successful roll - add to current turn score
-    gameState.currentTurnScore += finalDice
-    gameState.lastAction = 'rolled'
-    
-    showNotification(`🎲 ${playerName} rolled a ${finalDice}! Turn score: ${gameState.currentTurnScore}`, 'success', 3000)
-    
-    // Send successful roll to other players using host-relay pattern
-    if (props.isHost) {
-      broadcastGameAction({
-        type: 'SUCCESSFUL_ROLL',
-        playerId: props.connectionManager.state.peerId,
-        playerName: props.playerName,
-        dice: finalDice,
-        turnScore: gameState.currentTurnScore
-      })
-    } else {
-      // Non-host requests host to broadcast
-      broadcastGameAction({
-        type: 'REQUEST_SUCCESSFUL_ROLL',
-        playerId: props.connectionManager.state.peerId,
-        playerName: props.playerName,
-        dice: finalDice,
-        turnScore: gameState.currentTurnScore
-      })
-    }
-  }
+  // Remove the old host-specific dice processing logic since it's now
+  // handled centrally in the REQUEST_DICE_ROLLING_END case
 }
 
 const bankScore = () => {
@@ -623,18 +550,27 @@ const handleGameAction = (action) => {
       
     case 'SUCCESSFUL_ROLL':
       if (action.playerId !== props.connectionManager.state.peerId) {
+        // Other player's successful roll
         gameState.dice = action.dice
         gameState.currentTurnScore = action.turnScore
         gameState.lastAction = 'rolled'
         
         const playerName = getPlayerName(action.playerId)
         showNotification(`🎲 ${playerName} rolled a ${action.dice}! Turn score: ${action.turnScore}`, 'info', 2500)
+      } else {
+        // My own successful roll confirmed by host
+        gameState.dice = action.dice
+        gameState.currentTurnScore = action.turnScore
+        gameState.lastAction = 'rolled'
+        
+        const playerName = getPlayerName(action.playerId)
+        showNotification(`🎲 ${playerName} rolled a ${action.dice}! Turn score: ${action.turnScore}`, 'success', 3000)
       }
       break
       
     case 'PIG_OUT':
       if (action.playerId !== props.connectionManager.state.peerId) {
-        // Clear any pending nextPlayer timeout since someone else pigged out
+        // Other player pigged out
         if (nextPlayerTimeout.value) {
           console.log('Clearing pending nextPlayer timeout because someone else pigged out')
           clearTimeout(nextPlayerTimeout.value)
@@ -643,22 +579,40 @@ const handleGameAction = (action) => {
         
         gameState.dice = action.dice
         gameState.currentTurnScore = 0
-        gameState.isTurnEnding = true // Prevent actions during pig out transition
-        gameState.isPiggedOut = true // Show pig out indicator for all players
+        gameState.isTurnEnding = true
+        gameState.isPiggedOut = true
         gameState.lastAction = 'pigout'
         
         const playerName = getPlayerName(action.playerId)
         showNotification(`💥 ${playerName} rolled a 1! Pig out! Turn lost!`, 'error', 3500)
+      } else {
+        // My own pig out confirmed by host
+        gameState.dice = action.dice
+        gameState.currentTurnScore = 0
+        gameState.isTurnEnding = true
+        gameState.isPiggedOut = true
+        gameState.lastAction = 'pigout'
+        
+        showNotification(`💥 You rolled a 1! Pig out! Turn lost!`, 'error', 4000)
+        
+        // Non-host player who pigged out waits for host to handle nextPlayer
       }
       break
       
     case 'FIRST_ROLL_PROTECTION':
       if (action.playerId !== props.connectionManager.state.peerId) {
+        // Other player's first roll protection
         gameState.dice = action.dice
         gameState.lastAction = 'first_roll_protection'
         
         const playerName = getPlayerName(action.playerId)
         showNotification(`🎲 ${playerName} rolled a 1 on first roll - roll again! (No pig out)`, 'info', 2500)
+      } else {
+        // My own first roll protection confirmed by host
+        gameState.dice = action.dice
+        gameState.lastAction = 'first_roll_protection'
+        
+        showNotification(`🎲 You rolled a 1 on first roll - roll again! (No pig out)`, 'info', 3000)
       }
       break
     
@@ -709,9 +663,20 @@ const handleGameAction = (action) => {
       break
       
     case 'REQUEST_DICE_ROLLING_END':
-      // Only host handles this request and broadcasts to everyone
+      // Only host handles this request and processes the dice result
       if (props.isHost) {
         console.log('Host received REQUEST_DICE_ROLLING_END from:', action.playerId)
+        
+        // Verify that it's actually this player's turn
+        const currentPlayer = players.value[gameState.currentPlayer]
+        if (!currentPlayer || currentPlayer.id !== action.playerId) {
+          console.warn('Received dice roll from player who is not current player:', {
+            rollingPlayer: action.playerId,
+            currentPlayerId: currentPlayer?.id,
+            currentPlayerIndex: gameState.currentPlayer
+          })
+          return // Ignore dice rolls from players when it's not their turn
+        }
         
         // Broadcast dice rolling end to everyone (including the requester)
         broadcastGameAction({
@@ -724,6 +689,75 @@ const handleGameAction = (action) => {
         // Update host's local state
         gameState.isRolling = false
         gameState.dice = action.dice
+        
+        // Host processes the dice result logic and broadcasts the outcome
+        const finalDice = action.dice
+        const rollingPlayerName = action.playerName
+        
+        console.log('Processing dice result:', {
+          finalDice,
+          currentTurnScore: gameState.currentTurnScore,
+          playerId: action.playerId
+        })
+        
+        if (finalDice === 1) {
+          // Check if this is the first roll of the turn (no points accumulated yet)
+          if (gameState.currentTurnScore === 0) {
+            // First roll protection - just roll again, no pig out
+            showNotification(`🎲 ${rollingPlayerName} rolled a 1 on first roll - roll again! (No pig out)`, 'info', 3000)
+            
+            broadcastGameAction({
+              type: 'FIRST_ROLL_PROTECTION',
+              playerId: action.playerId,
+              playerName: action.playerName,
+              dice: finalDice
+            })
+            
+            gameState.lastAction = 'first_roll_protection'
+          } else {
+            // Pig out! Lose turn and current score
+            gameState.isTurnEnding = true
+            gameState.isPiggedOut = true
+            gameState.currentTurnScore = 0
+            gameState.lastAction = 'pigout'
+            
+            showNotification(`💥 ${rollingPlayerName} rolled a 1! Pig out! Turn lost!`, 'error', 4000)
+            
+            broadcastGameAction({
+              type: 'PIG_OUT',
+              playerId: action.playerId,
+              playerName: action.playerName,
+              dice: finalDice
+            })
+            
+            // Host handles nextPlayer after delay for pig out
+            nextPlayerTimeout.value = setTimeout(() => {
+              console.log('HOST PROCESSING PIG OUT: About to call nextPlayer()')
+              nextPlayer()
+            }, 4000)
+          }
+        } else {
+          // Successful roll - add to current turn score
+          const newTurnScore = gameState.currentTurnScore + finalDice
+          gameState.currentTurnScore = newTurnScore
+          gameState.lastAction = 'rolled'
+          
+          console.log('Updated turn score:', {
+            oldScore: gameState.currentTurnScore - finalDice,
+            addedDice: finalDice,
+            newScore: newTurnScore
+          })
+          
+          showNotification(`🎲 ${rollingPlayerName} rolled a ${finalDice}! Turn score: ${newTurnScore}`, 'success', 3000)
+          
+          broadcastGameAction({
+            type: 'SUCCESSFUL_ROLL',
+            playerId: action.playerId,
+            playerName: action.playerName,
+            dice: finalDice,
+            turnScore: newTurnScore
+          })
+        }
       } else {
         console.log('Non-host received REQUEST_DICE_ROLLING_END - ignoring')
       }
@@ -812,32 +846,6 @@ const handleGameAction = (action) => {
       }
       break
       
-    case 'REQUEST_SUCCESSFUL_ROLL':
-      // Only host handles this request and broadcasts to everyone
-      if (props.isHost) {
-        console.log('Host received REQUEST_SUCCESSFUL_ROLL from:', action.playerId)
-        
-        // Broadcast the successful roll to everyone (including the requester)
-        broadcastGameAction({
-          type: 'SUCCESSFUL_ROLL',
-          playerId: action.playerId,
-          playerName: action.playerName,
-          dice: action.dice,
-          turnScore: action.turnScore
-        })
-        
-        // Also update host's local state
-        gameState.dice = action.dice
-        gameState.currentTurnScore = action.turnScore
-        gameState.lastAction = 'rolled'
-        
-        const playerName = getPlayerName(action.playerId)
-        showNotification(`🎲 ${playerName} rolled a ${action.dice}! Turn score: ${action.turnScore} (via host)`, 'info', 2500)
-      } else {
-        console.log('Non-host received REQUEST_SUCCESSFUL_ROLL - ignoring')
-      }
-      break
-      
     case 'REQUEST_HOLD_SCORE':
       // Only host handles this request and broadcasts to everyone
       if (props.isHost) {
@@ -868,59 +876,6 @@ const handleGameAction = (action) => {
         showNotification(`💰 ${playerName} banked ${action.bankedScore} points! Total: ${action.newTotal} (via host)`, 'info', 2500)
       } else {
         console.log('Non-host received REQUEST_HOLD_SCORE - ignoring')
-      }
-      break
-      
-    case 'REQUEST_PIG_OUT':
-      // Only host handles this request and broadcasts to everyone
-      if (props.isHost) {
-        console.log('Host received REQUEST_PIG_OUT from:', action.playerId)
-        
-        // Update host's local game state FIRST
-        gameState.dice = action.dice
-        gameState.currentTurnScore = 0
-        gameState.isTurnEnding = true
-        gameState.isPiggedOut = true // Show pig out indicator for host too
-        gameState.lastAction = 'pigout'
-        
-        // Broadcast the pig out to everyone (including the requester)
-        broadcastGameAction({
-          type: 'PIG_OUT',
-          playerId: action.playerId,
-          playerName: action.playerName,
-          dice: action.dice
-        })
-        
-        const playerName = getPlayerName(action.playerId)
-        showNotification(`💥 ${playerName} rolled a 1! Pig out! Turn lost! (via host)`, 'error', 3500)
-        
-        // NOTE: Do NOT call nextPlayer() here - the original pig-out player already did it
-      } else {
-        console.log('Non-host received REQUEST_PIG_OUT - ignoring')
-      }
-      break
-      
-    case 'REQUEST_FIRST_ROLL_PROTECTION':
-      // Only host handles this request and broadcasts to everyone
-      if (props.isHost) {
-        console.log('Host received REQUEST_FIRST_ROLL_PROTECTION from:', action.playerId)
-        
-        // Broadcast the first roll protection to everyone (including the requester)
-        broadcastGameAction({
-          type: 'FIRST_ROLL_PROTECTION',
-          playerId: action.playerId,
-          playerName: action.playerName,
-          dice: action.dice
-        })
-        
-        // Update host's local game state
-        gameState.dice = action.dice
-        gameState.lastAction = 'first_roll_protection'
-        
-        const playerName = getPlayerName(action.playerId)
-        showNotification(`🎲 ${playerName} rolled a 1 on first roll - roll again! (No pig out) (via host)`, 'info', 2500)
-      } else {
-        console.log('Non-host received REQUEST_FIRST_ROLL_PROTECTION - ignoring')
       }
       break
       
@@ -1009,7 +964,7 @@ defineExpose({
 
 <template>
   <div class="game-board min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 p-4 pt-0">
-    <div class="max-w-4xl mx-auto">
+    <div class="max-w-6xl mx-auto">
       
       <!-- Top Bar -->
       <div class="flex items-center justify-between mb-6">
@@ -1035,7 +990,7 @@ defineExpose({
 
       <!-- Players Scoreboard - Moved to Top -->
       <div class="mb-8">
-        <div class="grid gap-5" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
+        <div class="grid gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           <div 
             v-for="player in players" 
             :key="player.id"
