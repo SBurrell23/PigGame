@@ -666,7 +666,7 @@ defineExpose({
     <!-- In lobby -->
     <div v-else class="space-y-4">
       <!-- Lobby Info -->
-      <div class="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-4 max-w-md mx-auto">
+      <div class="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-4 max-w-sm mx-auto">
         <div class="flex items-center justify-between mb-3">
           <h4 class="text-md font-semibold text-gray-900">
             {{ state.isHost ? '👑 Your Lobby' : '🎮 Joined Lobby' }}
@@ -691,7 +691,7 @@ defineExpose({
             <div class="relative">
               <button 
                 @click="copyToClipboard(state.lobbyId)"
-                class="px-3 py-2 bg-blue-500 text-white text-sm rounded hover:bg-blue-600 transition-colors flex items-center"
+                class="px-3 py-2.5 bg-blue-500 text-white text-sm rounded hover:bg-blue-600 transition-colors flex items-center h-full"
               >
                 📋 Copy
               </button>
@@ -796,8 +796,7 @@ defineExpose({
       </div>
 
       <!-- Game Controls (if host) -->
-      <div v-if="state.isHost && connectedPeers.length > 0" class="bg-green-50 border border-green-200 rounded-lg p-4">
-        <h4 class="text-md font-medium text-green-900 mb-3">🎲 Ready to Start?</h4>
+      <div v-if="state.isHost && connectedPeers.length > 0">
         <button 
           @click="startGame"
           class="w-full px-4 py-2 bg-green-500 text-white font-medium rounded hover:bg-green-600 transition-colors"

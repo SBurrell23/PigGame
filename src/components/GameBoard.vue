@@ -991,8 +991,9 @@ defineExpose({
       <!-- Players Scoreboard - Moved to Top -->
       <div class="mb-8">
         <div 
-          class="grid gap-5 w-full grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
+          class="grid gap-5 w-full grid-cols-1 md:grid-cols-2"
           :class="{
+            'lg:grid-cols-3': players.length === 3 || players.length >= 5,
             'lg:grid-cols-2': players.length === 4
           }"
         >
