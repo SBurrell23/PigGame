@@ -988,14 +988,14 @@ defineExpose({
 
       <!-- Players Scoreboard - Moved to Top -->
       <div class="mb-8">
-        <div class="grid gap-4" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
+        <div class="grid gap-5" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
           <div 
             v-for="player in players" 
             :key="player.id"
             class="relative bg-white rounded-xl shadow-lg border-l-4 p-4 transition-all duration-300 hover:shadow-xl"
             :class="{
-              'ring-4 ring-pink-300 ring-opacity-50 transform scale-105 bg-gradient-to-r from-pink-50 to-red-50': player.isCurrentPlayer && !gameState.gameEnded && gameState.isPiggedOut,
-              'ring-4 ring-yellow-300 ring-opacity-50 transform scale-105 bg-gradient-to-r from-yellow-50 to-orange-50': player.isCurrentPlayer && !gameState.gameEnded && !gameState.isPiggedOut,
+              'ring-4 ring-pink-300 ring-opacity-50 transform scale-105 hover:scale-105 bg-gradient-to-r from-pink-50 to-red-50': player.isCurrentPlayer && !gameState.gameEnded && gameState.isPiggedOut,
+              'ring-4 ring-yellow-300 ring-opacity-50 transform scale-105 hover:scale-105 bg-gradient-to-r from-yellow-50 to-orange-50': player.isCurrentPlayer && !gameState.gameEnded && !gameState.isPiggedOut,
               'ring-4 ring-green-300 ring-opacity-50 bg-gradient-to-r from-green-50 to-emerald-50': gameState.winner && player.id === gameState.winner.id,
               [getColorBorderClass(player.name)]: true
             }"
@@ -1231,8 +1231,8 @@ defineExpose({
   }
 }
 
-/* Score card hover effect */
-.game-board .hover\:shadow-xl:hover {
+/* Score card hover effect - exclude current player cards that have scale transform */
+.game-board .hover\:shadow-xl:hover:not(.scale-105) {
   transform: translateY(-2px);
 }
 
