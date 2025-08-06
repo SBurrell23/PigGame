@@ -1013,11 +1013,14 @@ defineExpose({
       
       <!-- Top Bar -->
       <div class="flex items-center justify-between mb-6">
-        <div class="flex items-center space-x-3">
-          <div class="text-3xl">🎲</div>
+        <div class="flex items-end space-x-3">
+          <div class="text-2xl sm:text-4xl">🎲</div>
           <div>
-            <div class="text-lg font-bold text-gray-800">Round {{ gameState.currentRound }}</div>
-            <div class="text-sm text-gray-600">Race to 100 points!</div>
+            <!-- Mobile: Round and Race on same line, Desktop: stacked -->
+            <div class="flex items-baseline space-x-2 sm:block sm:space-x-0">
+              <div class="text-lg font-bold text-gray-800">Round {{ gameState.currentRound }}</div>
+              <div class="text-sm text-gray-600">Race to 100 points!</div>
+            </div>
           </div>
         </div>
         <!-- Hide quit game for now, can be enabled later -->
