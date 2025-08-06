@@ -964,7 +964,7 @@ defineExpose({
 
 <template>
   <div class="game-board bg-gray-100">
-    <div class="max-w-6xl mx-auto p-6 sm:p-8 rounded-2xl">
+    <div class="max-w-6xl mx-auto p-6 sm:p-8 border border-gray-100 rounded-2xl">
       
       <!-- Top Bar -->
       <div class="flex items-center justify-between mb-6">
