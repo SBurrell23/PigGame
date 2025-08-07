@@ -59,8 +59,9 @@
           {{ isMuted ? '🔇 Unmute' : '🔇 Mute' }}
         </button>
 
-        <!-- Test Sound Button -->
+        <!-- Test Sound Button (Hidden for clean UI) -->
         <button
+          v-if="false"
           @click="testSound"
           :disabled="isMuted"
           class="w-full px-3 py-2 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
@@ -68,8 +69,8 @@
           🎵 Test Sound
         </button>
 
-        <!-- Sound Library Status -->
-        <div class="text-xs text-gray-500 border-t pt-2">
+        <!-- Sound Library Status (Hidden for clean UI) -->
+        <div v-if="false" class="text-xs text-gray-500 border-t pt-2">
           <div>Loaded: {{ loadedSounds }} sounds</div>
           <div v-if="loadingErrors.length > 0" class="text-red-500">
             Failed: {{ loadingErrors.length }} sounds
@@ -139,11 +140,9 @@ const soundLibrary = {
   // Game events
   gameStart: 'game-start.wav', // Done
   gameWin: 'game-win.wav', // Done
-  turnChange: 'turn-change.wav',
 
   // UI sounds
   buttonClick: 'button-click.wav', // Done
-  notification: 'notification.wav',
   
   // Connection sounds
   playerJoin: 'player-join.wav', // Done

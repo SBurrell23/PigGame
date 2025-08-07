@@ -376,7 +376,7 @@ const bankScore = () => {
     playGameSound('coinBank')
     
     // Check for win condition
-    if (currentPlayer.score >= 1) {
+    if (currentPlayer.score >= 100) {
       gameState.gameEnded = true
       gameState.winner = currentPlayer
       gameState.lastAction = 'won'
