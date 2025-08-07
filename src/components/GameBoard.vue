@@ -1167,8 +1167,7 @@ defineExpose({
             <div class="flex items-center justify-between">
               <div class="flex items-center space-x-3">
                 <div class="text-2xl">
-                  {{ player.isHost ? '👑' : '🎮' }}
-                  {{ gameState.winner && player.id === gameState.winner.id ? '🏆' : '' }}
+                  {{ gameState.winner && player.id === gameState.winner.id ? '🏆' : (player.isHost ? '👑' : '🎮') }}
                 </div>
                 <div>
                   <div class="font-bold transition-colors duration-300" :class="player.isCurrentPlayer && !gameState.gameEnded ? 'text-black dark:text-gray-700' : 'text-gray-900 dark:text-gray-100'">
@@ -1227,7 +1226,7 @@ defineExpose({
             <button 
               @click="bankScore"
               :disabled="!canHold"
-              class="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-yellow-500 to-orange-500 text-white font-bold text-lg rounded-xl hover:from-yellow-600 hover:to-orange-600 disabled:from-gray-300 disabled:to-gray-400 disabled:text-gray-200 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:transform-none disabled:shadow-md disabled:hover:from-gray-300 disabled:hover:to-gray-400 disabled:hover:shadow-md disabled:hover:scale-100"
+              class="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-yellow-500 to-yellow-600 text-white font-bold text-lg rounded-xl hover:from-yellow-600 hover:to-yellow-700 disabled:from-gray-300 disabled:to-gray-400 disabled:text-gray-200 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:transform-none disabled:shadow-md disabled:hover:from-gray-300 disabled:hover:to-gray-400 disabled:hover:shadow-md disabled:hover:scale-100"
             >
               💰 Bank Points
             </button>
