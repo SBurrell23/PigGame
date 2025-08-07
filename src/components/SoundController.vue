@@ -98,7 +98,7 @@ const props = defineProps({
   },
   defaultVolume: {
     type: Number,
-    default: 0.7,
+    default: 0.5,
     validator: (value) => value >= 0 && value <= 1
   }
 })
@@ -132,6 +132,7 @@ const soundLibrary = {
   diceLandedMedium: 'dice-landed-medium.wav', // Done
   diceLandedHigh: 'dice-landed-high.wav', // Done
   diceLandedMax: 'dice-landed-max.wav', // Done
+  diceLandedMin: 'dice-landed-min.wav', // Done
   coinBank: 'coin-bank.wav', // Done
   pigOut: 'pig-out.mp3', // Done
 
@@ -192,7 +193,9 @@ const playDiceLandedSound = (rollValue) => {
     playSound('diceLandedHigh')
   } else if (rollValue == 6) {
     playSound('diceLandedMax')
-  } 
+  } else if (rollValue == 1) {
+    playSound('diceLandedMin')
+  }
   // No sound for 1 (pig out) or invalid values
 }
 
