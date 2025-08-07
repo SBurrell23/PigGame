@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import ConnectionManager from './components/ConnectionManager.vue'
 import GameBoard from './components/GameBoard.vue'
 import GameRules from './components/GameRules.vue'
+import SoundController from './components/SoundController.vue'
 import { useGameConnection } from './composables/useGameConnection.js'
 
 // Game connection composable
@@ -16,9 +17,34 @@ const {
 // Refs
 const connectionManager = ref(null)
 const gameBoardRef = ref(null)
+const soundController = ref(null)
 const currentView = ref('lobby') // 'lobby' or 'game'
 const gameData = ref(null)
 const isDisconnecting = ref(false) // Flag to prevent lobby flash during disconnection
+
+// Sound controller methods
+const onSoundControllerReady = (controller) => {
+  console.log('🎵 Sound controller ready with', controller.getLoadedSounds().length, 'sounds')
+  
+  // Make sound controller globally available
+  if (typeof window !== 'undefined') {
+    window.$soundController = controller
+  }
+  
+  // Store reference for easy access in this component
+  soundController.value = controller
+}
+
+// Sound helper function
+const playGameSound = (soundName, options = {}) => {
+  try {
+    if (window.$soundController && window.$soundController.playSound) {
+      window.$soundController.playSound(soundName, options)
+    }
+  } catch (error) {
+    console.warn('Failed to play sound:', soundName, error)
+  }
+}
 
 // Connection event handlers
 const onPeerReady = (event) => {
@@ -29,10 +55,12 @@ const onPeerReady = (event) => {
 
 const onPeerConnected = (event) => {
   console.log('Peer connected:', event)
+  // Sound will be handled by broadcast system for all players
 }
 
 const onPeerDisconnected = (event) => {
   console.log('Peer disconnected:', event)
+  // Sound will be handled by broadcast system for all players
   
   // If a peer disconnected during game, forward to GameBoard
   if (currentView.value === 'game' && event.duringGame) {
@@ -49,6 +77,9 @@ const onDataReceived = (event) => {
   if (event.data.type === 'HOST_LEFT_GAME') {
     // Host left - disconnect completely and return to front page
     console.log('Host left game, disconnecting completely')
+    
+    // Play leave sound since we're being disconnected due to host leaving
+    playGameSound('playerLeave')
     
     // Set disconnecting flag immediately to prevent lobby flash
     isDisconnecting.value = true
@@ -187,6 +218,21 @@ const onConnectionError = (error) => {
   console.error('Connection error:', error)
 }
 
+const onPlayerJoinedSound = (event) => {
+  console.log('Player joined sound:', event)
+  playGameSound('playerJoin')
+}
+
+const onPlayerLeftSound = (event) => {
+  console.log('Player left sound:', event)
+  playGameSound('playerLeave')
+}
+
+const onButtonClickSound = () => {
+  console.log('Button click sound')
+  playGameSound('buttonClick')
+}
+
 onMounted(() => {
   console.log('Pig Game App mounted')
 })
@@ -200,10 +246,15 @@ onMounted(() => {
           <div class="flex justify-start lg:w-0 lg:flex-1">
             <h1 class="text-2xl font-bold text-gray-900">🐷 Pig Dice</h1>
           </div>
-          <nav class="">
+          <nav class="flex items-center space-x-4">
             <div class="text-sm text-gray-500 italic">
               A Game Of Greed
             </div>
+            <!-- Sound Controller -->
+            <SoundController 
+              ref="soundController"
+              @sound-controller-ready="onSoundControllerReady"
+            />
           </nav>
         </div>
       </div>
@@ -228,6 +279,9 @@ onMounted(() => {
             @connection-error="onConnectionError"
             @game-started="onGameStarted"
             @host-disconnected-during-game="onHostDisconnectedDuringGame"
+            @player-joined-sound="onPlayerJoinedSound"
+            @player-left-sound="onPlayerLeftSound"
+            @button-click-sound="onButtonClickSound"
           />
         </div>
         

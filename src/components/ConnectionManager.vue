@@ -21,7 +21,10 @@ const emit = defineEmits([
   'data-received',
   'connection-error',
   'peer-ready',
-  'game-started'
+  'game-started',
+  'player-joined-sound',
+  'player-left-sound',
+  'button-click-sound'
 ])
 
 // Reactive state
@@ -46,6 +49,8 @@ const copyNotification = ref(false) // Flag for copy notification
 
 // Utility function to copy text to clipboard
 const copyToClipboard = async (text) => {
+  emit('button-click-sound')
+  
   try {
     await navigator.clipboard.writeText(text)
     console.log('Copied to clipboard:', text)
@@ -144,6 +149,8 @@ const startGame = () => {
 
 // Host a new game lobby
 const hostLobby = () => {
+  emit('button-click-sound')
+  
   const gameId = generateGameId()
   state.lobbyId = gameId
   state.isHost = true
@@ -154,6 +161,8 @@ const hostLobby = () => {
 // Join an existing game lobby
 const joinLobby = () => {
   if (joinGameId.value.trim()) {
+    emit('button-click-sound')
+    
     state.lobbyId = joinGameId.value.trim()
     state.isHost = false
     lobbyMode.value = 'join'
@@ -163,6 +172,11 @@ const joinLobby = () => {
 
 // Leave the current lobby
 const leaveLobby = () => {
+  // Play leave sound for the person voluntarily leaving
+  emit('player-left-sound', {
+    peerId: state.peerId // Use own peer ID since we're the one leaving
+  })
+  
   disconnect()
   state.lobbyId = null
   state.isInLobby = false
@@ -285,7 +299,18 @@ const handleConnection = (conn) => {
     
     // If we're the host, broadcast lobby update to all players
     if (state.isHost) {
-      setTimeout(() => broadcastLobbyUpdate(), 100) // Small delay to ensure connection is ready
+      setTimeout(() => {
+        broadcastLobbyUpdate()
+        // Broadcast player join sound to all players (including host)
+        broadcast({
+          type: 'PLAYER_JOIN_SOUND',
+          peerId: conn.peer
+        })
+        // Also trigger sound locally for host
+        emit('player-joined-sound', {
+          peerId: conn.peer
+        })
+      }, 100) // Small delay to ensure connection is ready
     }
     
     emit('peer-connected', {
@@ -300,6 +325,11 @@ const handleConnection = (conn) => {
     // Handle kick message
     if (data && data.type === 'KICKED') {
       console.log('Kicked from lobby:', data.message)
+      
+      // Play leave sound for the kicked player
+      emit('player-left-sound', {
+        peerId: state.peerId // Use own peer ID since we're the one leaving
+      })
       
       // Set error message to show user they were kicked
       state.error = data.message || 'You have been removed from the lobby'
@@ -330,6 +360,22 @@ const handleConnection = (conn) => {
       return
     }
     
+    // Handle player join sound message
+    if (data && data.type === 'PLAYER_JOIN_SOUND') {
+      emit('player-joined-sound', {
+        peerId: data.peerId
+      })
+      return
+    }
+    
+    // Handle player leave sound message
+    if (data && data.type === 'PLAYER_LEAVE_SOUND') {
+      emit('player-left-sound', {
+        peerId: data.peerId
+      })
+      return
+    }
+    
     emit('data-received', {
       peerId: conn.peer,
       data: data,
@@ -339,6 +385,19 @@ const handleConnection = (conn) => {
 
   conn.on('close', () => {
     console.log('Connection closed with:', conn.peer)
+    
+    // Broadcast player leave sound if we're the host (before deleting connection)
+    if (state.isHost) {
+      broadcast({
+        type: 'PLAYER_LEAVE_SOUND',
+        peerId: conn.peer
+      })
+      // Also trigger sound locally for host
+      emit('player-left-sound', {
+        peerId: conn.peer
+      })
+    }
+    
     state.connections.delete(conn.peer)
     updateConnectedPeers()
     
@@ -353,6 +412,11 @@ const handleConnection = (conn) => {
       // then the host left and we should return to home screen
       if (!state.isHost && conn.peer === state.lobbyId) {
         console.log('Host disconnected, returning to home screen')
+        
+        // Play leave sound since we're being disconnected due to host leaving
+        emit('player-left-sound', {
+          peerId: state.peerId // Use own peer ID since we're the one leaving
+        })
         
         // Reset lobby state
         state.lobbyId = null

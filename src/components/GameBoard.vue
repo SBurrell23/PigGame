@@ -133,6 +133,9 @@ onMounted(() => {
     const currentPlayerName = getPlayerName(currentPlayer?.id)
     showNotification(`🎮 Game Started! ${currentPlayerName} goes first!`, 'info')
     
+    // Play game start sound
+    playGameSound('gameStart')
+    
     // Broadcast initial game state to ensure everyone is synchronized
     if (props.isHost) {
       console.log('Broadcasting initial game sync as host')
@@ -186,6 +189,17 @@ const showNotification = (message, type = 'info', duration = 3000) => {
   setTimeout(() => {
     gameState.notification = null
   }, duration)
+}
+
+// Sound helper function
+const playGameSound = (soundName, options = {}) => {
+  try {
+    if (window.$soundController && window.$soundController.playSound) {
+      window.$soundController.playSound(soundName, options)
+    }
+  } catch (error) {
+    console.warn('Failed to play sound:', soundName, error)
+  }
 }
 
 const getPlayerName = (playerId) => {
@@ -290,6 +304,9 @@ const rollDice = () => {
   
   // Show rolling notification
   showNotification(`🎲 ${playerName} is rolling...`, 'info', 2000)
+  
+  // Play dice roll sound
+  playGameSound('diceRoll')
 }
 
 // Handle dice result from the dice component
@@ -347,6 +364,9 @@ const bankScore = () => {
     const playerName = getPlayerName(currentPlayer.id)
     showNotification(`💰 ${playerName} banked ${bankedScore} points! Total: ${currentPlayer.score}`, 'success', 3000)
     
+    // Play coin bank sound
+    playGameSound('coinBank')
+    
     // Check for win condition
     if (currentPlayer.score >= 100) {
       gameState.gameEnded = true
@@ -354,6 +374,9 @@ const bankScore = () => {
       gameState.lastAction = 'won'
       
       showNotification(`🏆 ${playerName} wins with ${currentPlayer.score} points!`, 'success', 6000)
+      
+      // Play game win sound
+      playGameSound('gameWin')
       
       broadcastGameAction({
         type: 'GAME_END',
@@ -441,6 +464,9 @@ const nextPlayer = () => {
   // Show turn notification
   showNotification(`🎯 It's ${playerName}'s turn!`, 'info', 3000)
   
+  // Play turn change sound
+  playGameSound('turnChange')
+  
   console.log('Broadcasting NEXT_PLAYER with:', {
     currentPlayer: gameState.currentPlayer,
     currentRound: gameState.currentRound,
@@ -522,6 +548,9 @@ const newGame = () => {
   const startingPlayerName = getPlayerName(players.value[gameStartingPlayer.value]?.id)
   showNotification(`🎮 New Game Started! ${startingPlayerName} goes first!`, 'info', 3000)
   
+  // Play game start sound
+  playGameSound('gameStart')
+  
   broadcastGameAction({
     type: 'NEW_GAME',
     gameState: { ...gameState },
@@ -597,6 +626,9 @@ const handleGameAction = (action) => {
         
         const playerName = getPlayerName(action.playerId)
         showNotification(`💥 ${playerName} rolled a 1! Pig out! Turn lost!`, 'error', 3500)
+        
+        // Play pig out sound for other players too
+        playGameSound('pigOut')
       } else {
         // My own pig out confirmed by host
         gameState.dice = action.dice
@@ -606,6 +638,9 @@ const handleGameAction = (action) => {
         gameState.lastAction = 'pigout'
         
         showNotification(`💥 You rolled a 1! Pig out! Turn lost!`, 'error', 4000)
+        
+        // Play pig out sound for yourself
+        playGameSound('pigOut')
         
         // Non-host player who pigged out waits for host to handle nextPlayer
       }
@@ -734,6 +769,9 @@ const handleGameAction = (action) => {
             gameState.lastAction = 'pigout'
             
             showNotification(`💥 ${rollingPlayerName} rolled a 1! Pig out! Turn lost!`, 'error', 4000)
+            
+            // Play pig out sound
+            playGameSound('pigOut')
             
             broadcastGameAction({
               type: 'PIG_OUT',
