@@ -1,7 +1,6 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import Dice from './Dice.vue'
-import GameRules from './GameRules.vue'
 
 // Props
 const props = defineProps({

@@ -316,7 +316,7 @@ onMounted(() => {
         <div v-else-if="currentView === 'lobby'" class="max-w-5xl mx-auto">
           
           <!-- Game Rules Card -->
-          <div class="mt-8">
+          <div class="mt-8 mb-10 sm:mb-0">
             <GameRules />
           </div>
           
@@ -334,7 +334,7 @@ onMounted(() => {
             @game-ended="onGameEnded"
           />
           <!-- Game Rules Card -->
-          <div class="mt-8">
+          <div class="mt-8 mb-10 sm:mb-0">
             <GameRules />
           </div>
         </div>
