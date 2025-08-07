@@ -1198,7 +1198,7 @@ defineExpose({
       </div>
 
       <!-- Dice and Actions Area -->
-      <div class="mb-8">
+      <div class="mb-4">
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-600 p-8 text-center transition-colors duration-300">
           <!-- Dice Component -->
           <div class="">
@@ -1277,11 +1277,6 @@ defineExpose({
             <div class="font-semibold text-center">{{ gameState.notification.message }}</div>
           </div>
         </div>
-      </div>
-
-      <!-- Game Rules (Collapsed by default) -->
-      <div class="mb-6">
-        <GameRules />
       </div>
 
       <!-- Debug Info (hidden by default) -->

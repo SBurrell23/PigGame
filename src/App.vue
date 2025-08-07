@@ -333,6 +333,10 @@ onMounted(() => {
             @leave-game="onLeaveGame"
             @game-ended="onGameEnded"
           />
+          <!-- Game Rules Card -->
+          <div class="mt-8">
+            <GameRules />
+          </div>
         </div>
         
       </div>
