@@ -376,14 +376,14 @@ const bankScore = () => {
     playGameSound('coinBank')
     
     // Check for win condition
-    if (currentPlayer.score >= 100) {
+    if (currentPlayer.score >= 1) {
       gameState.gameEnded = true
       gameState.winner = currentPlayer
       gameState.lastAction = 'won'
       
       showNotification(`🏆 ${playerName} wins with ${currentPlayer.score} points!`, 'success', 6000)
       
-      // Play game win sound
+      // Play game win sound locally - since the winning player won't receive their own broadcast
       playGameSound('gameWin')
       
       broadcastGameAction({
@@ -933,6 +933,28 @@ const handleGameAction = (action) => {
         const holdingPlayer = players.value.find(p => p.id === action.playerId)
         if (holdingPlayer) {
           holdingPlayer.score = action.newTotal
+          
+          // Check for win condition when any player banks points
+          if (holdingPlayer.score >= 100) {
+            gameState.gameEnded = true
+            gameState.winner = holdingPlayer
+            gameState.lastAction = 'won'
+            
+            const playerName = getPlayerName(holdingPlayer.id)
+            showNotification(`🏆 ${playerName} wins with ${holdingPlayer.score} points!`, 'success', 6000)
+            
+            // Play game win sound for host since they process the win
+            playGameSound('gameWin')
+            
+            // Broadcast game end to all players (including the winner)
+            broadcastGameAction({
+              type: 'GAME_END',
+              winner: holdingPlayer,
+              finalScores: players.value.map(p => ({ id: p.id, name: p.name, score: p.score }))
+            })
+            
+            return // Don't continue with normal hold processing
+          }
         }
         
         // Broadcast the hold score to everyone (including the requester)
@@ -970,12 +992,28 @@ const handleGameAction = (action) => {
       const winnerName = getPlayerName(action.winner.id)
       showNotification(`🏆 ${winnerName} wins with ${action.winner.score} points!`, 'success', 5000)
       
+      // Only play game win sound if this player is NOT the winner
+      // (the winner already played it locally when they detected the win)
+      if (action.winner.id !== props.connectionManager.state.peerId) {
+        playGameSound('gameWin')
+      }
+      
       action.finalScores.forEach(score => {
         const player = players.value.find(p => p.id === score.id)
         if (player) {
           player.score = score.score
         }
       })
+      
+      // If host receives GAME_END from another player, broadcast it to all other players
+      if (props.isHost && action.winner.id !== props.connectionManager.state.peerId) {
+        console.log('Host relaying GAME_END to all other players')
+        broadcastGameAction({
+          type: 'GAME_END',
+          winner: action.winner,
+          finalScores: action.finalScores
+        })
+      }
       break
       
     case 'NEW_GAME':

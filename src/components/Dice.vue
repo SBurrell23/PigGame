@@ -52,8 +52,8 @@ const startRollAnimation = () => {
   isAnimating.value = true
   
   // Animation parameters
-  const animationDuration = 1500 // 1.5 seconds (must match external game logic)
-  const changeInterval = 32 // Change dice face every x ms
+  const animationDuration = 1250 // 1.25 seconds (must match external game logic)
+  const changeInterval = 40 // Change dice face every x ms
   const startTime = Date.now()
   
   // Always use finalResult if provided, otherwise wait for it to be set
