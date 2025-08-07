@@ -1136,13 +1136,13 @@ defineExpose({
             v-for="player in players" 
             :key="player.id"
             class="relative bg-white dark:bg-gray-800 rounded-xl border-l-8 p-4 transition-all duration-300 hover:shadow-xl"
-            :style="!(player.isCurrentPlayer && !gameState.gameEnded) && !(gameState.winner && player.id === gameState.winner.id) ? 'box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.05);' : ''"
             :class="{
-              'ring-4 ring-pink-300 ring-opacity-50 transform scale-105 hover:scale-105 bg-gradient-to-r from-pink-50 to-red-50 dark:from-pink-900 dark:to-red-900': player.isCurrentPlayer && !gameState.gameEnded && gameState.isPiggedOut,
-              'ring-4 ring-yellow-300 ring-opacity-50 transform scale-105 hover:scale-105 bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-900 dark:to-orange-900': player.isCurrentPlayer && !gameState.gameEnded && !gameState.isPiggedOut,
-              'ring-4 ring-green-300 ring-opacity-50 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900 dark:to-emerald-900': gameState.winner && player.id === gameState.winner.id,
+              'ring-4 ring-pink-400 transform scale-105 hover:scale-105 bg-gradient-to-r from-pink-50 to-red-50': player.isCurrentPlayer && !gameState.gameEnded && gameState.isPiggedOut,
+              'ring-4 ring-yellow-400 transform scale-105 hover:scale-105 bg-gradient-to-r from-yellow-50 to-yellow-100': player.isCurrentPlayer && !gameState.gameEnded && !gameState.isPiggedOut,
+              'ring-4 ring-green-400 transform scale-105 hover:scale-105 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-800 dark:to-emerald-800': gameState.winner && player.id === gameState.winner.id,
               [getColorBorderClass(player.name)]: true
             }"
+            :style="!(player.isCurrentPlayer && !gameState.gameEnded) && !(gameState.winner && player.id === gameState.winner.id) ? 'box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);' : ''"
           >
             <!-- Current Player Indicator -->
             <div 
@@ -1171,10 +1171,10 @@ defineExpose({
                   {{ gameState.winner && player.id === gameState.winner.id ? '🏆' : '' }}
                 </div>
                 <div>
-                  <div class="font-bold text-gray-900 dark:text-gray-100 transition-colors duration-300">
+                  <div class="font-bold transition-colors duration-300" :class="player.isCurrentPlayer && !gameState.gameEnded ? 'text-black dark:text-gray-700' : 'text-gray-900 dark:text-gray-100'">
                     {{ player.id === connectionManager?.state?.peerId ? `You (${player.name})` : player.name }}
                   </div>
-                  <div class="text-xs text-gray-500 dark:text-gray-400 transition-colors duration-300">{{ player.isHost ? 'Host' : 'Player' }}</div>
+                  <div class="text-xs transition-colors duration-300" :class="player.isCurrentPlayer && !gameState.gameEnded ? 'text-black dark:text-gray-600' : 'text-gray-500 dark:text-gray-400'">{{ player.isHost ? 'Host' : 'Player' }}</div>
                 </div>
               </div>
               
@@ -1186,12 +1186,12 @@ defineExpose({
                     +{{ gameState.currentTurnScore }}
                   </div>
                   <div v-if="player.isCurrentPlayer && !gameState.gameEnded && gameState.currentTurnScore > 0" 
-                       class="text-2xl text-gray-400">
+                       class="text-2xl transition-colors duration-300" :class="player.isCurrentPlayer && !gameState.gameEnded ? 'text-black dark:text-gray-600' : 'text-gray-400'">
                     →
                   </div>
-                  <div class="text-3xl font-bold text-gray-900 dark:text-gray-100 transition-colors duration-300">{{ player.score }}</div>
+                  <div class="text-3xl font-bold transition-colors duration-300" :class="player.isCurrentPlayer && !gameState.gameEnded ? 'text-black dark:text-gray-700' : 'text-gray-900 dark:text-gray-100'">{{ player.score }}</div>
                 </div>
-                <div class="text-sm text-gray-500 dark:text-gray-400 transition-colors duration-300">points</div>
+                <div class="text-sm transition-colors duration-300" :class="player.isCurrentPlayer && !gameState.gameEnded ? 'text-black dark:text-gray-600' : 'text-gray-500 dark:text-gray-400'">points</div>
               </div>
             </div>
           </div>
