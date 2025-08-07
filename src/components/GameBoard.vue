@@ -672,6 +672,8 @@ const handleGameAction = (action) => {
       const playerName = getPlayerName(action.playerId)
       if (action.playerId !== props.connectionManager.state.peerId) {
         showNotification(`🎲 ${playerName} is rolling...`, 'info', 1500)
+        // Play dice roll sound for other players
+        playGameSound('diceRoll')
       }
       break
       
@@ -704,6 +706,11 @@ const handleGameAction = (action) => {
         gameState.lastAction = 'rolling'
         
         showNotification(`🎲 ${action.playerName} is rolling... (via host)`, 'info', 1500)
+        
+        // Play dice roll sound for host too (if it's another player rolling)
+        if (action.playerId !== props.connectionManager.state.peerId) {
+          playGameSound('diceRoll')
+        }
       } else {
         console.log('Non-host received REQUEST_DICE_ROLLING_START - ignoring')
       }
@@ -834,6 +841,9 @@ const handleGameAction = (action) => {
         
         const playerName = getPlayerName(action.playerId)
         showNotification(`💰 ${playerName} banked ${action.bankedScore} points! Total: ${action.newTotal}`, 'info', 2500)
+        
+        // Play coin bank sound for other players
+        playGameSound('coinBank')
       }
       break
       
@@ -924,6 +934,11 @@ const handleGameAction = (action) => {
         
         const playerName = getPlayerName(action.playerId)
         showNotification(`💰 ${playerName} banked ${action.bankedScore} points! Total: ${action.newTotal} (via host)`, 'info', 2500)
+        
+        // Play coin bank sound for host too (if it's another player banking)
+        if (action.playerId !== props.connectionManager.state.peerId) {
+          playGameSound('coinBank')
+        }
       } else {
         console.log('Non-host received REQUEST_HOLD_SCORE - ignoring')
       }

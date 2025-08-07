@@ -167,8 +167,14 @@ const updateVolume = (event) => {
 }
 
 const toggleMute = () => {
+  const wasMuted = isMuted.value
   isMuted.value = !isMuted.value
   saveSettings()
+  
+  // Close dropdown only when muting (not when unmuting)
+  if (!wasMuted && isMuted.value) {
+    closeDropdown()
+  }
 }
 
 const testSound = () => {
