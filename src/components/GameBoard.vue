@@ -204,6 +204,7 @@ const playGameSound = (soundName, options = {}) => {
 
 // Dice landed sound helper - uses SoundController's helper function
 const playDiceLandedSound = (rollValue) => {
+  console.log('🎵 DICE LANDED SOUND:', rollValue, 'from player:', props.connectionManager?.state?.peerId)
   try {
     if (window.$soundController && window.$soundController.playDiceLandedSound) {
       window.$soundController.playDiceLandedSound(rollValue)
@@ -324,22 +325,15 @@ const rollDice = () => {
 const handleDiceResult = (finalDice) => {
   gameState.isRolling = false
   
-  // Play dice landed sound for local player
+  // Play dice landed sound for local player only
   playDiceLandedSound(finalDice)
   
   const playerName = getPlayerName(props.connectionManager.state.peerId)
   
   // Broadcast dice result to other players
   if (props.isHost) {
-    broadcastGameAction({
-      type: 'DICE_ROLLING_END',
-      playerId: props.connectionManager.state.peerId,
-      playerName: playerName,
-      dice: finalDice
-    })
-    
-    // Host should also process its own dice result through the centralized logic
-    // by sending itself a REQUEST_DICE_ROLLING_END message
+    // Host processes its own dice result through the centralized logic
+    // Don't broadcast DICE_ROLLING_END here to avoid duplicate processing
     const action = {
       playerId: props.connectionManager.state.peerId,
       playerName: playerName,
@@ -612,6 +606,8 @@ const handleGameAction = (action) => {
         
         const playerName = getPlayerName(action.playerId)
         showNotification(`🎲 ${playerName} rolled a ${action.dice}! Turn score: ${action.turnScore}`, 'info', 2500)
+        
+        // Don't play dice landed sound here - only local player should hear their own dice land
       } else {
         // My own successful roll confirmed by host
         gameState.dice = action.dice
@@ -641,7 +637,7 @@ const handleGameAction = (action) => {
         const playerName = getPlayerName(action.playerId)
         showNotification(`💥 ${playerName} rolled a 1! Pig out! Turn lost!`, 'error', 3500)
         
-        // Play pig out sound for other players too
+        // Don't play dice landed sound here - only local player should hear their own dice land
         playGameSound('pigOut')
       } else {
         // My own pig out confirmed by host
@@ -668,6 +664,8 @@ const handleGameAction = (action) => {
         
         const playerName = getPlayerName(action.playerId)
         showNotification(`🎲 ${playerName} rolled a 1 on first roll - roll again! (No pig out)`, 'info', 2500)
+        
+        // Don't play dice landed sound here - only local player should hear their own dice land
       } else {
         // My own first roll protection confirmed by host
         gameState.dice = action.dice
@@ -696,8 +694,8 @@ const handleGameAction = (action) => {
         gameState.isRolling = false
         gameState.dice = action.dice
         
-        // Play dice landed sound for other players
-        playDiceLandedSound(action.dice)
+        // Don't play dice landed sound here - it will be played by the specific result handlers
+        // (SUCCESSFUL_ROLL, PIG_OUT, FIRST_ROLL_PROTECTION) to avoid duplicate sounds
       }
       break
       
@@ -761,10 +759,8 @@ const handleGameAction = (action) => {
         gameState.isRolling = false
         gameState.dice = action.dice
         
-        // Play dice landed sound for host (if it's another player rolling)
-        if (action.playerId !== props.connectionManager.state.peerId) {
-          playDiceLandedSound(action.dice)
-        }
+        // Don't play dice landed sound here - it will be played in the specific result handlers
+        // (SUCCESSFUL_ROLL, PIG_OUT, FIRST_ROLL_PROTECTION) to avoid duplicate sounds
         
         // Host processes the dice result logic and broadcasts the outcome
         const finalDice = action.dice
@@ -799,7 +795,7 @@ const handleGameAction = (action) => {
             
             showNotification(`💥 ${rollingPlayerName} rolled a 1! Pig out! Turn lost!`, 'error', 4000)
             
-            // Play pig out sound
+            // Play pig out sound for host
             playGameSound('pigOut')
             
             broadcastGameAction({

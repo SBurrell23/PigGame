@@ -131,6 +131,7 @@ const soundLibrary = {
   diceLandedLow: 'dice-landed-low.wav', // Done
   diceLandedMedium: 'dice-landed-medium.wav', // Done
   diceLandedHigh: 'dice-landed-high.wav', // Done
+  diceLandedMax: 'dice-landed-max.wav', // Done
   coinBank: 'coin-bank.wav', // Done
   pigOut: 'pig-out.mp3', // Done
 
@@ -185,11 +186,13 @@ const testSound = () => {
 const playDiceLandedSound = (rollValue) => {
   if (rollValue >= 2 && rollValue <= 3) {
     playSound('diceLandedLow')
-  } else if (rollValue >= 4 && rollValue <= 5) {
+  } else if (rollValue == 4) {
     playSound('diceLandedMedium')
-  } else if (rollValue === 6) {
+  } else if (rollValue == 5) {
     playSound('diceLandedHigh')
-  }
+  } else if (rollValue == 6) {
+    playSound('diceLandedMax')
+  } 
   // No sound for 1 (pig out) or invalid values
 }
 
