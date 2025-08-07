@@ -155,6 +155,15 @@ const soundLibrary = {
 
 // Methods
 const toggleDropdown = () => {
+  // Play button click sound (only if sound controller is available and not currently muted)
+  try {
+    if (window.$soundController && window.$soundController.playSound && !isMuted.value && masterVolume.value > 0) {
+      window.$soundController.playSound('buttonClick')
+    }
+  } catch (error) {
+    console.warn('Failed to play button click sound:', error)
+  }
+  
   isOpen.value = !isOpen.value
 }
 

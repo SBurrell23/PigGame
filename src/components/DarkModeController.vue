@@ -26,6 +26,15 @@ const isDarkMode = ref(false)
 
 // Methods
 const toggleDarkMode = () => {
+  // Play button click sound
+  try {
+    if (window.$soundController && window.$soundController.playSound) {
+      window.$soundController.playSound('buttonClick')
+    }
+  } catch (error) {
+    console.warn('Failed to play button click sound:', error)
+  }
+  
   isDarkMode.value = !isDarkMode.value
   applyDarkMode()
   saveSettings()
