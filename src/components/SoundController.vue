@@ -5,7 +5,7 @@
       @click="toggleDropdown"
       :class="[
         'p-2 rounded-lg transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500',
-        isOpen ? 'bg-gray-100 dark:bg-gray-700' : ''
+        isOpen ? 'bg-gray-700 dark:bg-gray-600' : 'bg-gray-100 dark:bg-gray-700'
       ]"
       :title="isMuted || masterVolume === 0 ? 'Unmute sounds' : 'Adjust volume'"
     >

@@ -730,7 +730,7 @@ defineExpose({
     <!-- In lobby -->
     <div v-else class="space-y-4">
       <!-- Lobby Info -->
-      <div class="bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900 dark:to-blue-900 border border-blue-200 dark:border-blue-700 rounded-lg p-4 max-w-sm mx-auto transition-colors duration-300">
+      <div class="bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg p-4 max-w-sm mx-auto transition-colors duration-300">
         <div class="flex items-center justify-between mb-3">
           <h4 class="text-md font-semibold text-gray-900 dark:text-gray-100 transition-colors duration-300">
             {{ state.isHost ? '👑 Your Lobby' : '🎮 Joined Lobby' }}

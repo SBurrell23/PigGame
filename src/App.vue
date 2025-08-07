@@ -252,12 +252,14 @@ onMounted(() => {
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between items-center py-6">
           <div class="flex justify-start lg:w-0 lg:flex-1">
-            <h1 class="text-2xl font-bold text-gray-900 dark:text-white transition-colors duration-300">🐷 Pig Dice</h1>
+            <div class="flex items-baseline space-x-3">
+              <h1 class="text-2xl font-bold text-gray-900 dark:text-white transition-colors duration-300">🐷 Pig Dice</h1>
+              <div class="hidden sm:block text-sm text-gray-500 dark:text-gray-400 italic">
+                &nbsp;A Game Of Greed
+              </div>
+            </div>
           </div>
           <nav class="flex items-center space-x-4">
-            <div class="text-sm text-gray-500 dark:text-gray-400 italic">
-              A Game Of Greed
-            </div>
             <!-- Theme Controls -->
             <div class="flex items-center space-x-2">
               <!-- Dark Mode Controller -->
