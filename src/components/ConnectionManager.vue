@@ -642,7 +642,7 @@ defineExpose({
 </script>
 
 <template>
-  <div class="connection-manager bg-white rounded-lg shadow-md p-6">
+  <div class="connection-manager bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 transition-colors duration-300">
     <!-- Header -->
     <div class="mb-6">
       <div class="flex items-center justify-between">
@@ -661,15 +661,15 @@ defineExpose({
                 }
               ]"
             ></div>
-            <span class="text-sm font-medium text-gray-700 capitalize">
+            <span class="text-sm font-medium text-gray-700 dark:text-gray-300 capitalize transition-colors duration-300">
               {{ state.status }}
             </span>
           </div>
           
-          <div v-if="state.isHost" class="px-2 py-1 bg-purple-100 text-purple-800 text-xs font-medium rounded">
+          <div v-if="state.isHost" class="px-2 py-1 bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200 text-xs font-medium rounded transition-colors duration-300">
             👑 Host
           </div>
-          <div v-else-if="state.isInLobby" class="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded">
+          <div v-else-if="state.isInLobby" class="px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-xs font-medium rounded transition-colors duration-300">
             🎮 Player
           </div>
         </div>
@@ -679,21 +679,21 @@ defineExpose({
     <!-- Not in lobby - Choose host or join -->
     <div v-if="!state.isInLobby" class="space-y-4">
       <div class="text-center hidden sm:block">
-        <h4 class="text-md font-medium text-gray-900 mb-3">Ready to play?</h4>
-        <p class="text-sm text-gray-600 mb-6">Host a new game or join an existing lobby</p>
+        <h4 class="text-md font-medium text-gray-900 dark:text-gray-100 mb-3 transition-colors duration-300">Ready to play?</h4>
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-6 transition-colors duration-300">Host a new game or join an existing lobby</p>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <!-- Host Game -->
-        <div class="border border-gray-200 rounded-lg p-4 hover:border-purple-300 transition-colors">
+        <div class="border border-gray-200 dark:border-gray-600 rounded-lg p-4 hover:border-purple-300 dark:hover:border-purple-500 transition-colors">
           <div class="text-center">
             <div class="text-3xl mb-2">👑</div>
-            <h5 class="font-semibold text-gray-900 mb-2">Host Game</h5>
-            <p class="text-sm text-gray-600 mb-4">Create a new lobby for other players to join</p>
+            <h5 class="font-semibold text-gray-900 dark:text-gray-100 mb-2 transition-colors duration-300">Host Game</h5>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4 transition-colors duration-300">Create a new lobby for other players to join</p>
             <button 
               @click="hostLobby"
               :disabled="state.status === 'connecting'"
-              class="w-full px-4 py-2 bg-purple-500 text-white text-sm rounded hover:bg-purple-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+              class="w-full px-4 py-2 bg-purple-500 text-white text-sm rounded hover:bg-purple-600 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
             >
               {{ state.status === 'connecting' ? 'Creating...' : 'Create Lobby' }}
             </button>
@@ -701,23 +701,23 @@ defineExpose({
         </div>
 
         <!-- Join Game -->
-        <div class="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors">
+        <div class="border border-gray-200 dark:border-gray-600 rounded-lg p-4 hover:border-blue-300 dark:hover:border-blue-500 transition-colors">
           <div class="text-center">
             <div class="text-3xl mb-2">🎮</div>
-            <h5 class="font-semibold text-gray-900 mb-2">Join Game</h5>
-            <p class="text-sm text-gray-600 mb-4">Enter a lobby code to join an existing game</p>
+            <h5 class="font-semibold text-gray-900 dark:text-gray-100 mb-2 transition-colors duration-300">Join Game</h5>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4 transition-colors duration-300">Enter a lobby code to join an existing game</p>
             <div class="space-y-2">
               <input 
                 v-model="joinGameId"
                 type="text" 
                 placeholder="Enter Lobby Code"
-                class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-center font-mono"
+                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-center font-mono bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 transition-colors duration-300"
                 @keyup.enter="joinLobby"
               >
               <button 
                 @click="joinLobby"
                 :disabled="!joinGameId.trim() || state.status === 'connecting'"
-                class="w-full px-4 py-2 bg-blue-500 text-white text-sm rounded hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                class="w-full px-4 py-2 bg-blue-500 text-white text-sm rounded hover:bg-blue-600 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
               >
                 {{ state.status === 'connecting' ? 'Joining...' : 'Join Lobby' }}
               </button>
@@ -730,9 +730,9 @@ defineExpose({
     <!-- In lobby -->
     <div v-else class="space-y-4">
       <!-- Lobby Info -->
-      <div class="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-4 max-w-sm mx-auto">
+      <div class="bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900 dark:to-blue-900 border border-blue-200 dark:border-blue-700 rounded-lg p-4 max-w-sm mx-auto transition-colors duration-300">
         <div class="flex items-center justify-between mb-3">
-          <h4 class="text-md font-semibold text-gray-900">
+          <h4 class="text-md font-semibold text-gray-900 dark:text-gray-100 transition-colors duration-300">
             {{ state.isHost ? '👑 Your Lobby' : '🎮 Joined Lobby' }}
           </h4>
           <button 
@@ -745,11 +745,11 @@ defineExpose({
 
         <!-- Lobby ID -->
         <div class="mb-3">
-          <label class="block text-sm font-medium text-gray-700 mb-1">
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 transition-colors duration-300">
             {{ state.isHost ? 'Share Lobby Code' : 'Lobby Code' }}
           </label>
           <div class="flex items-center space-x-2">
-            <code class="px-3 py-2 bg-white border border-gray-300 text-gray-800 rounded text-lg font-mono flex-1 text-center">
+            <code class="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200 rounded text-lg font-mono flex-1 text-center transition-colors duration-300">
               {{ state.lobbyId }}
             </code>
             <div class="relative">
@@ -775,8 +775,8 @@ defineExpose({
       </div>
 
       <!-- Players in Lobby -->
-      <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
-        <h4 class="text-md font-medium text-gray-900 mb-3">
+      <div class="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-4 transition-colors duration-300">
+        <h4 class="text-md font-medium text-gray-900 dark:text-gray-100 mb-3 transition-colors duration-300">
           👥 Players in Lobby ({{ state.isHost ? connectedPeers.length + 1 : allLobbyPlayers.length }})
         </h4>
         
@@ -784,16 +784,16 @@ defineExpose({
           <!-- For hosts: show yourself + connected players -->
           <template v-if="state.isHost">
             <!-- Host player (yourself) -->
-            <div class="flex items-center justify-between p-3 bg-white rounded border-l-4" :class="getColorBorderClass('Green')">
+            <div class="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded border-l-4 transition-colors duration-300" :class="getColorBorderClass('Green')">
               <div class="flex items-center">
                 <div class="text-lg mr-2">👑</div>
                 <div>
-                  <div class="text-sm font-medium text-gray-900">
+                  <div class="text-sm font-medium text-gray-900 dark:text-gray-100 transition-colors duration-300">
                     You (Green)
                   </div>
                 </div>
               </div>
-              <div class="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded">
+              <div class="px-2 py-1 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 text-xs font-medium rounded transition-colors duration-300">
                 Host
               </div>
             </div>
@@ -802,19 +802,19 @@ defineExpose({
             <div 
               v-for="(peerId, index) in connectedPeers" 
               :key="peerId"
-              class="flex items-center justify-between p-3 bg-white rounded border-l-4"
+              class="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded border-l-4 transition-colors duration-300"
               :class="getColorBorderClass(getPlayerColorName(index + 1))"
             >
               <div class="flex items-center">
                 <div class="text-lg mr-2">🎮</div>
                 <div>
-                  <div class="text-sm font-medium text-gray-900">
+                  <div class="text-sm font-medium text-gray-900 dark:text-gray-100 transition-colors duration-300">
                     {{ getPlayerColorName(index + 1) }}
                   </div>
                 </div>
               </div>
               <div class="flex items-center space-x-2">
-                <div class="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded">
+                <div class="px-2 py-1 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 text-xs font-medium rounded transition-colors duration-300">
                   Connected
                 </div>
                 <button 
@@ -832,18 +832,18 @@ defineExpose({
             <div 
               v-for="player in allLobbyPlayers" 
               :key="player.peerId"
-              class="flex items-center justify-between p-3 bg-white rounded border-l-4"
+              class="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded border-l-4 transition-colors duration-300"
               :class="getColorBorderClass(player.name)"
             >
               <div class="flex items-center">
                 <div class="text-lg mr-2">{{ player.isHost ? '👑' : '🎮' }}</div>
                 <div>
-                  <div class="text-sm font-medium text-gray-900">
+                  <div class="text-sm font-medium text-gray-900 dark:text-gray-100 transition-colors duration-300">
                     {{ player.peerId === state.peerId ? `You (${player.name})` : player.name }}
                   </div>
                 </div>
               </div>
-              <div class="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded">
+              <div class="px-2 py-1 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 text-xs font-medium rounded transition-colors duration-300">
                 {{ player.isHost ? 'Host' : 'Connected' }}
               </div>
             </div>
@@ -852,7 +852,7 @@ defineExpose({
           <!-- Waiting for players -->
           <div v-if="(state.isHost && connectedPeers.length === 0) || (!state.isHost && allLobbyPlayers.length <= 1)" class="text-center py-4">
             <div class="text-gray-400 text-lg mb-2">⏳</div>
-            <p class="text-sm text-gray-500">
+            <p class="text-sm text-gray-500 dark:text-gray-400 transition-colors duration-300">
               {{ state.isHost ? 'Waiting for players to join...' : 'Waiting for other players...' }}
             </p>
           </div>
@@ -871,8 +871,8 @@ defineExpose({
     </div>
 
     <!-- Error display -->
-    <div v-if="state.error" class="mt-4 p-3 bg-red-100 border border-red-300 rounded">
-      <p class="text-red-700 text-sm">
+    <div v-if="state.error" class="mt-4 p-3 bg-red-100 dark:bg-red-900 border border-red-300 dark:border-red-700 rounded transition-colors duration-300">
+      <p class="text-red-700 dark:text-red-200 text-sm transition-colors duration-300">
         <strong>Error:</strong> {{ state.error }}
       </p>
     </div>

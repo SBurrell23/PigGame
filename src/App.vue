@@ -4,6 +4,7 @@ import ConnectionManager from './components/ConnectionManager.vue'
 import GameBoard from './components/GameBoard.vue'
 import GameRules from './components/GameRules.vue'
 import SoundController from './components/SoundController.vue'
+import DarkModeController from './components/DarkModeController.vue'
 import { useGameConnection } from './composables/useGameConnection.js'
 
 // Game connection composable
@@ -18,6 +19,7 @@ const {
 const connectionManager = ref(null)
 const gameBoardRef = ref(null)
 const soundController = ref(null)
+const darkModeController = ref(null)
 const currentView = ref('lobby') // 'lobby' or 'game'
 const gameData = ref(null)
 const isDisconnecting = ref(false) // Flag to prevent lobby flash during disconnection
@@ -33,6 +35,12 @@ const onSoundControllerReady = (controller) => {
   
   // Store reference for easy access in this component
   soundController.value = controller
+}
+
+// Dark mode controller methods
+const onDarkModeReady = (controller) => {
+  console.log('🌙 Dark mode controller ready')
+  darkModeController.value = controller
 }
 
 // Sound helper function
@@ -239,22 +247,30 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-100">
-    <header class="bg-white shadow-sm">
+  <div class="min-h-screen bg-gray-100 dark:bg-gray-900 transition-colors duration-300">
+    <header class="bg-white dark:bg-gray-800 shadow-sm transition-colors duration-300">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between items-center py-6">
           <div class="flex justify-start lg:w-0 lg:flex-1">
-            <h1 class="text-2xl font-bold text-gray-900">🐷 Pig Dice</h1>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white transition-colors duration-300">🐷 Pig Dice</h1>
           </div>
           <nav class="flex items-center space-x-4">
-            <div class="text-sm text-gray-500 italic">
+            <div class="text-sm text-gray-500 dark:text-gray-400 italic">
               A Game Of Greed
             </div>
-            <!-- Sound Controller -->
-            <SoundController 
-              ref="soundController"
-              @sound-controller-ready="onSoundControllerReady"
-            />
+            <!-- Theme Controls -->
+            <div class="flex items-center space-x-2">
+              <!-- Dark Mode Controller -->
+              <DarkModeController 
+                ref="darkModeController"
+                @dark-mode-ready="onDarkModeReady"
+              />
+              <!-- Sound Controller -->
+              <SoundController 
+                ref="soundController"
+                @sound-controller-ready="onSoundControllerReady"
+              />
+            </div>
           </nav>
         </div>
       </div>
@@ -287,10 +303,10 @@ onMounted(() => {
         
         <!-- Disconnecting State -->
         <div v-if="isDisconnecting" class="max-w-md mx-auto mt-8">
-          <div class="bg-white rounded-lg shadow-md p-8 text-center">
+          <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 text-center transition-colors duration-300">
             <div class="text-4xl mb-4">🔄</div>
-            <h3 class="text-lg font-semibold text-gray-900 mb-2">Disconnecting...</h3>
-            <p class="text-gray-600">Returning to connection screen</p>
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2 transition-colors duration-300">Disconnecting...</h3>
+            <p class="text-gray-600 dark:text-gray-300 transition-colors duration-300">Returning to connection screen</p>
           </div>
         </div>
         

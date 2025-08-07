@@ -1098,8 +1098,8 @@ defineExpose({
 </script>
 
 <template>
-  <div class="game-board bg-gray-100">
-    <div class="max-w-6xl mx-auto p-6 sm:p-8 border border-gray-100 rounded-2xl">
+  <div class="game-board bg-gray-100 dark:bg-gray-900 transition-colors duration-300">
+    <div class="max-w-6xl mx-auto p-6 sm:p-8 border border-gray-100 dark:border-gray-700 rounded-2xl transition-colors duration-300">
       
       <!-- Top Bar -->
       <div class="flex items-center justify-between mb-6">
@@ -1108,8 +1108,8 @@ defineExpose({
           <div>
             <!-- Mobile: Round and Race on same line, Desktop: stacked -->
             <div class="flex items-baseline space-x-2 sm:block sm:space-x-0">
-              <div class="text-lg font-bold text-gray-800">Round {{ gameState.currentRound }}</div>
-              <div class="text-sm text-gray-600">Race to 100 points!</div>
+              <div class="text-lg font-bold text-gray-800 dark:text-gray-200 transition-colors duration-300">Round {{ gameState.currentRound }}</div>
+              <div class="text-sm text-gray-600 dark:text-gray-400 transition-colors duration-300">Race to 100 points!</div>
             </div>
           </div>
         </div>
@@ -1135,12 +1135,12 @@ defineExpose({
           <div 
             v-for="player in players" 
             :key="player.id"
-            class="relative bg-white rounded-xl border-l-8 p-4 transition-all duration-300 hover:shadow-xl"
+            class="relative bg-white dark:bg-gray-800 rounded-xl border-l-8 p-4 transition-all duration-300 hover:shadow-xl"
             :style="!(player.isCurrentPlayer && !gameState.gameEnded) && !(gameState.winner && player.id === gameState.winner.id) ? 'box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.05);' : ''"
             :class="{
-              'ring-4 ring-pink-300 ring-opacity-50 transform scale-105 hover:scale-105 bg-gradient-to-r from-pink-50 to-red-50': player.isCurrentPlayer && !gameState.gameEnded && gameState.isPiggedOut,
-              'ring-4 ring-yellow-300 ring-opacity-50 transform scale-105 hover:scale-105 bg-gradient-to-r from-yellow-50 to-orange-50': player.isCurrentPlayer && !gameState.gameEnded && !gameState.isPiggedOut,
-              'ring-4 ring-green-300 ring-opacity-50 bg-gradient-to-r from-green-50 to-emerald-50': gameState.winner && player.id === gameState.winner.id,
+              'ring-4 ring-pink-300 ring-opacity-50 transform scale-105 hover:scale-105 bg-gradient-to-r from-pink-50 to-red-50 dark:from-pink-900 dark:to-red-900': player.isCurrentPlayer && !gameState.gameEnded && gameState.isPiggedOut,
+              'ring-4 ring-yellow-300 ring-opacity-50 transform scale-105 hover:scale-105 bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-900 dark:to-orange-900': player.isCurrentPlayer && !gameState.gameEnded && !gameState.isPiggedOut,
+              'ring-4 ring-green-300 ring-opacity-50 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900 dark:to-emerald-900': gameState.winner && player.id === gameState.winner.id,
               [getColorBorderClass(player.name)]: true
             }"
           >
@@ -1171,10 +1171,10 @@ defineExpose({
                   {{ gameState.winner && player.id === gameState.winner.id ? '🏆' : '' }}
                 </div>
                 <div>
-                  <div class="font-bold text-gray-900">
+                  <div class="font-bold text-gray-900 dark:text-gray-100 transition-colors duration-300">
                     {{ player.id === connectionManager?.state?.peerId ? `You (${player.name})` : player.name }}
                   </div>
-                  <div class="text-xs text-gray-500">{{ player.isHost ? 'Host' : 'Player' }}</div>
+                  <div class="text-xs text-gray-500 dark:text-gray-400 transition-colors duration-300">{{ player.isHost ? 'Host' : 'Player' }}</div>
                 </div>
               </div>
               
@@ -1189,9 +1189,9 @@ defineExpose({
                        class="text-2xl text-gray-400">
                     →
                   </div>
-                  <div class="text-3xl font-bold text-gray-900">{{ player.score }}</div>
+                  <div class="text-3xl font-bold text-gray-900 dark:text-gray-100 transition-colors duration-300">{{ player.score }}</div>
                 </div>
-                <div class="text-sm text-gray-500">points</div>
+                <div class="text-sm text-gray-500 dark:text-gray-400 transition-colors duration-300">points</div>
               </div>
             </div>
           </div>
@@ -1200,7 +1200,7 @@ defineExpose({
 
       <!-- Dice and Actions Area -->
       <div class="mb-8">
-        <div class="bg-white rounded-xl shadow-md border border-gray-200 p-8 text-center">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-600 p-8 text-center transition-colors duration-300">
           <!-- Dice Component -->
           <div class="">
             <Dice 
@@ -1236,10 +1236,10 @@ defineExpose({
           <!-- Game Over Actions -->
           <div v-if="gameState.gameEnded" class="space-y-4">
             <!-- Winner Announcement -->
-            <div v-if="gameState.winner" class="mb-6 mt-6 p-6 bg-gradient-to-r from-green-100 to-emerald-100 border border-green-200 rounded-xl text-center">
+            <div v-if="gameState.winner" class="mb-6 mt-6 p-6 bg-gradient-to-r from-green-100 to-emerald-100 dark:from-green-800 dark:to-emerald-800 border border-green-200 dark:border-green-600 rounded-xl text-center transition-colors duration-300">
               <div class="text-4xl mb-2">🎉</div>
-              <h3 class="text-3xl font-bold text-green-900 mb-2">Game Over!</h3>
-              <p class="text-xl text-green-700">
+              <h3 class="text-3xl font-bold text-green-900 dark:text-green-100 mb-2 transition-colors duration-300">Game Over!</h3>
+              <p class="text-xl text-green-700 dark:text-green-200 transition-colors duration-300">
                 {{ gameState.winner.name }} wins with {{ gameState.winner.score }} points!
               </p>
             </div>
@@ -1322,6 +1322,14 @@ defineExpose({
     inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
+.dark .game-board .max-w-6xl {
+  background: rgb(31, 41, 55); /* gray-800 */
+  box-shadow: 
+    0 20px 25px -5px rgba(0, 0, 0, 0.3), 
+    0 10px 10px -5px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
 /* Custom animations */
 @keyframes pulse {
   0%, 100% {
@@ -1396,6 +1404,11 @@ defineExpose({
 .game-board .bg-white.rounded-2xl.shadow-xl {
   background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
   border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.dark .game-board .bg-white.rounded-2xl.shadow-xl {
+  background: linear-gradient(135deg, rgb(31, 41, 55) 0%, rgb(17, 24, 39) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 /* Mobile responsiveness improvements */

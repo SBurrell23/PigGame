@@ -4,8 +4,8 @@
     <button
       @click="toggleDropdown"
       :class="[
-        'p-2 rounded-lg transition-all duration-200 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500',
-        isOpen ? 'bg-gray-100' : ''
+        'p-2 rounded-lg transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500',
+        isOpen ? 'bg-gray-100 dark:bg-gray-700' : ''
       ]"
       :title="isMuted || masterVolume === 0 ? 'Unmute sounds' : 'Adjust volume'"
     >
@@ -21,19 +21,19 @@
     <!-- Volume Dropdown -->
     <div
       v-if="isOpen"
-      class="absolute right-0 top-full mt-2 bg-white rounded-lg shadow-lg border border-gray-200 p-4 z-50 min-w-[200px]"
+      class="absolute right-0 top-full mt-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-600 p-4 z-50 min-w-[200px] transition-colors duration-300"
       @click.stop
     >
       <div class="space-y-4">
         <!-- Header -->
         <div class="flex items-center justify-center">
-          <h3 class="font-semibold text-gray-900">Master Volume</h3>
+          <h3 class="font-semibold text-gray-900 dark:text-gray-100 transition-colors duration-300">Master Volume</h3>
         </div>
 
         <!-- Volume Slider -->
         <div class="space-y-2">
           <div class="flex items-center space-x-3">
-            <span class="text-xs text-gray-500">🔈</span>
+            <span class="text-xs text-gray-500 dark:text-gray-400">🔈</span>
             <input
               type="range"
               min="0"
@@ -41,12 +41,12 @@
               :value="masterVolume * 100"
               @input="updateVolume"
               :disabled="isMuted"
-              class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              class="flex-1 h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-300"
               :class="volumeSliderClass"
             />
-            <span class="text-xs text-gray-500">🔊</span>
+            <span class="text-xs text-gray-500 dark:text-gray-400">🔊</span>
           </div>
-          <div class="text-xs text-gray-500 text-center">
+          <div class="text-xs text-gray-500 dark:text-gray-400 text-center transition-colors duration-300">
             {{ isMuted ? 'Muted' : Math.round(masterVolume * 100) + '%' }}
           </div>
         </div>
@@ -70,9 +70,9 @@
         </button>
 
         <!-- Sound Library Status (Hidden for clean UI) -->
-        <div v-if="false" class="text-xs text-gray-500 border-t pt-2">
+        <div v-if="false" class="text-xs text-gray-500 dark:text-gray-400 border-t dark:border-gray-600 pt-2 transition-colors duration-300">
           <div>Loaded: {{ loadedSounds }} sounds</div>
-          <div v-if="loadingErrors.length > 0" class="text-red-500">
+          <div v-if="loadingErrors.length > 0" class="text-red-500 dark:text-red-400">
             Failed: {{ loadingErrors.length }} sounds
           </div>
         </div>
@@ -437,6 +437,10 @@ input[type="range"]::-webkit-slider-track {
   border-radius: 4px;
 }
 
+.dark input[type="range"]::-webkit-slider-track {
+  background: #4b5563;
+}
+
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   height: 20px;
@@ -467,6 +471,10 @@ input[type="range"]::-moz-range-track {
   background: #e5e7eb;
   border-radius: 4px;
   border: none;
+}
+
+.dark input[type="range"]::-moz-range-track {
+  background: #4b5563;
 }
 
 input[type="range"]::-moz-range-thumb {
