@@ -128,7 +128,9 @@ const volumeSliderClass = computed(() => {
 const soundLibrary = {
   // Game actions
   diceRoll: 'dice-roll.wav', // Done
-  diceStop: 'dice-stop.wav',
+  diceLandedLow: 'dice-landed-low.wav', // Done
+  diceLandedMedium: 'dice-landed-medium.wav', // Done
+  diceLandedHigh: 'dice-landed-high.wav', // Done
   coinBank: 'coin-bank.wav', // Done
   pigOut: 'pig-out.mp3', // Done
 
@@ -140,8 +142,6 @@ const soundLibrary = {
   // UI sounds
   buttonClick: 'button-click.wav', // Done
   notification: 'notification.wav',
-  error: 'error.wav',
-  success: 'success.wav',
   
   // Connection sounds
   playerJoin: 'player-join.wav', // Done
@@ -179,6 +179,18 @@ const toggleMute = () => {
 
 const testSound = () => {
   playSound('test')
+}
+
+// Helper function for dice landed sounds based on roll value
+const playDiceLandedSound = (rollValue) => {
+  if (rollValue >= 2 && rollValue <= 3) {
+    playSound('diceLandedLow')
+  } else if (rollValue >= 4 && rollValue <= 5) {
+    playSound('diceLandedMedium')
+  } else if (rollValue === 6) {
+    playSound('diceLandedHigh')
+  }
+  // No sound for 1 (pig out) or invalid values
 }
 
 // Core sound loading and playing functionality
@@ -377,6 +389,7 @@ onUnmounted(() => {
 // Expose methods for external use
 const SoundController = {
   playSound,
+  playDiceLandedSound,
   setVolume: (volume) => {
     masterVolume.value = Math.max(0, Math.min(1, volume))
     saveSettings()

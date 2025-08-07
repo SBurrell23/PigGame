@@ -202,6 +202,17 @@ const playGameSound = (soundName, options = {}) => {
   }
 }
 
+// Dice landed sound helper - uses SoundController's helper function
+const playDiceLandedSound = (rollValue) => {
+  try {
+    if (window.$soundController && window.$soundController.playDiceLandedSound) {
+      window.$soundController.playDiceLandedSound(rollValue)
+    }
+  } catch (error) {
+    console.warn('Failed to play dice landed sound:', rollValue, error)
+  }
+}
+
 const getPlayerName = (playerId) => {
   const player = players.value.find(p => p.id === playerId)
   if (!player) return 'Unknown Player'
@@ -312,6 +323,9 @@ const rollDice = () => {
 // Handle dice result from the dice component
 const handleDiceResult = (finalDice) => {
   gameState.isRolling = false
+  
+  // Play dice landed sound for local player
+  playDiceLandedSound(finalDice)
   
   const playerName = getPlayerName(props.connectionManager.state.peerId)
   
@@ -681,6 +695,9 @@ const handleGameAction = (action) => {
       if (action.playerId !== props.connectionManager.state.peerId) {
         gameState.isRolling = false
         gameState.dice = action.dice
+        
+        // Play dice landed sound for other players
+        playDiceLandedSound(action.dice)
       }
       break
       
@@ -743,6 +760,11 @@ const handleGameAction = (action) => {
         // Update host's local state
         gameState.isRolling = false
         gameState.dice = action.dice
+        
+        // Play dice landed sound for host (if it's another player rolling)
+        if (action.playerId !== props.connectionManager.state.peerId) {
+          playDiceLandedSound(action.dice)
+        }
         
         // Host processes the dice result logic and broadcasts the outcome
         const finalDice = action.dice
