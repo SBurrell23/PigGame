@@ -50,6 +50,13 @@ const gameStarted = ref(false)
 const nextPlayerTimeout = ref(null) // Track the nextPlayer timeout to clear it if needed
 const gameStartingPlayer = ref(0) // Track which player should start the next game
 const pointsToWin = ref(100)
+const finalChanceEnabled = ref(false)
+const finalChanceState = reactive({
+  active: false,
+  leaderId: null,
+  leaderScore: 0,
+  remaining: [] // queue of player ids who still get a last turn (excludes leader)
+})
 
 // Initialize players from connection manager
 onMounted(() => {
@@ -64,8 +71,9 @@ onMounted(() => {
     // First try to use gameData if it has players
     if (props.gameData?.players?.length > 0) {
       console.log('Using gameData players:', props.gameData.players)
-  // Initialize pointsToWin from gameData if provided
-  pointsToWin.value = props.gameData?.settings?.pointsToWin ?? 100
+      // Initialize settings from gameData if provided
+      pointsToWin.value = props.gameData?.settings?.pointsToWin ?? 100
+      finalChanceEnabled.value = !!(props.gameData?.settings?.finalChance)
       players.value = props.gameData.players.map((player, index) => ({
         id: player.id,
         name: player.name,
@@ -145,7 +153,8 @@ onMounted(() => {
         type: 'GAME_SYNC',
         currentPlayer: gameState.currentPlayer,
         currentRound: gameState.currentRound,
-        players: players.value
+  players: players.value,
+  settings: { pointsToWin: pointsToWin.value, finalChance: finalChanceEnabled.value }
       })
     }
   } else {
@@ -378,23 +387,47 @@ const bankScore = () => {
     playGameSound('coinBank')
     
     // Check for win condition
-  if (currentPlayer.score >= pointsToWin.value) {
-      gameState.gameEnded = true
-      gameState.winner = currentPlayer
-      gameState.lastAction = 'won'
-      
-      showNotification(`🏆 ${playerName} wins with ${currentPlayer.score} points!`, 'success', 6000)
-      
-      // Play game win sound locally - since the winning player won't receive their own broadcast
-      playGameSound('gameWin')
-      
-      broadcastGameAction({
-        type: 'GAME_END',
-        winner: currentPlayer,
-        finalScores: players.value.map(p => ({ id: p.id, name: p.name, score: p.score }))
-      })
-      
-      return
+    if (currentPlayer.score >= pointsToWin.value) {
+      // If Final Chance is enabled
+      if (finalChanceEnabled.value) {
+        // If already in Final Chance, don't restart it or end early; host will just advance after broadcasting hold
+        if (!finalChanceState.active) {
+          if (props.isHost) {
+            // Broadcast the hold result first so all players see the updated total
+            broadcastGameAction({
+              type: 'HOLD_SCORE',
+              playerId: currentPlayer.id,
+              playerName: props.playerName,
+              bankedScore: bankedScore,
+              newTotal: currentPlayer.score,
+              players: players.value
+            })
+            // Start final chance phase
+            startFinalChance(currentPlayer.id)
+            // Move to the next eligible player
+            nextPlayer()
+            return
+          }
+          // Non-host: continue with normal request flow; host will orchestrate final chance
+        }
+      } else {
+        // Normal rules: end immediately
+        gameState.gameEnded = true
+        gameState.winner = currentPlayer
+        gameState.lastAction = 'won'
+        
+        showNotification(`🏆 ${playerName} wins with ${currentPlayer.score} points!`, 'success', 6000)
+        
+        // Play game win sound locally - since the winning player won't receive their own broadcast
+        playGameSound('gameWin')
+        
+        broadcastGameAction({
+          type: 'GAME_END',
+          winner: currentPlayer,
+          finalScores: players.value.map(p => ({ id: p.id, name: p.name, score: p.score }))
+        })
+        return
+      }
     }
   }
   
@@ -422,7 +455,14 @@ const bankScore = () => {
   
   gameState.lastAction = 'banked'
   
-  // End turn immediately for banking - no delay needed
+  // End turn: during Final Chance, only host advances turns.
+  if (finalChanceEnabled.value && finalChanceState.active) {
+    if (props.isHost) {
+      nextPlayer()
+    }
+    return
+  }
+  // Normal flow
   nextPlayer()
 }
 
@@ -457,7 +497,26 @@ const nextPlayer = () => {
   
   // Update current player
   players.value[gameState.currentPlayer].isCurrentPlayer = false
-  gameState.currentPlayer = (gameState.currentPlayer + 1) % players.value.length
+  if (finalChanceEnabled.value && finalChanceState.active && props.isHost) {
+    // In final chance, host controls order by remaining queue
+    if (finalChanceState.remaining.length > 0) {
+      const nextId = finalChanceState.remaining.shift()
+      const nextIndex = players.value.findIndex(p => p.id === nextId)
+      if (nextIndex !== -1) {
+        gameState.currentPlayer = nextIndex
+      } else {
+        // Fallback to normal rotation if not found
+        gameState.currentPlayer = (gameState.currentPlayer + 1) % players.value.length
+      }
+    } else {
+      // Queue exhausted: conclude final chance
+      concludeFinalChance()
+      gameState.isProcessingNextPlayer = false
+      return
+    }
+  } else {
+    gameState.currentPlayer = (gameState.currentPlayer + 1) % players.value.length
+  }
   players.value[gameState.currentPlayer].isCurrentPlayer = true
   
   console.log('nextPlayer - new current player index:', gameState.currentPlayer)
@@ -494,14 +553,16 @@ const nextPlayer = () => {
       players: players.value
     })
   } else {
-    // Send a request to host to broadcast next player
-    broadcastGameAction({
-      type: 'REQUEST_NEXT_PLAYER',
-      requestedCurrentPlayer: gameState.currentPlayer,
-      requestedCurrentRound: gameState.currentRound,
-      requestingPlayerId: props.connectionManager.state.peerId,
-      players: players.value
-    })
+    // During Final Chance, only host advances turns; otherwise request next
+    if (!(finalChanceEnabled.value && finalChanceState.active)) {
+      broadcastGameAction({
+        type: 'REQUEST_NEXT_PLAYER',
+        requestedCurrentPlayer: gameState.currentPlayer,
+        requestedCurrentRound: gameState.currentRound,
+        requestingPlayerId: props.connectionManager.state.peerId,
+        players: players.value
+      })
+    }
   }
   
   gameState.lastAction = 'turn_change'
@@ -548,6 +609,11 @@ const newGame = () => {
   gameState.isPiggedOut = false   // Critical: Reset pig out flag
   gameState.isProcessingNextPlayer = false  // Critical: Reset processing flag
   gameState.lastAction = null
+  // Reset final chance state
+  finalChanceState.active = false
+  finalChanceState.leaderId = null
+  finalChanceState.leaderScore = 0
+  finalChanceState.remaining = []
   
   // Reset player scores and set current player
   players.value.forEach((player, index) => {
@@ -564,7 +630,7 @@ const newGame = () => {
   broadcastGameAction({
     type: 'NEW_GAME',
     gameState: { ...gameState },
-    players: players.value,
+  players: players.value,
     startingPlayer: gameStartingPlayer.value
   })
 }
@@ -590,6 +656,11 @@ const handleGameAction = (action) => {
       players.value.forEach((player, index) => {
         player.isCurrentPlayer = index === action.currentPlayer
       })
+      // Apply settings if provided
+      if (action.settings) {
+        pointsToWin.value = action.settings.pointsToWin ?? pointsToWin.value
+        finalChanceEnabled.value = !!action.settings.finalChance
+      }
       
       const syncPlayerName = getPlayerName(players.value[action.currentPlayer]?.id)
       showNotification(`🔄 Game synchronized! ${syncPlayerName}'s turn`, 'info', 2000)
@@ -850,51 +921,52 @@ const handleGameAction = (action) => {
       break
       
     case 'HOLD_SCORE':
+      // Update the holding player's total (for others; local already updated at source)
       if (action.playerId !== props.connectionManager.state.peerId) {
         const holdingPlayer = players.value.find(p => p.id === action.playerId)
         if (holdingPlayer) {
           holdingPlayer.score = action.newTotal
         }
-        gameState.currentTurnScore = 0
-        gameState.isTurnEnding = false
-        gameState.lastAction = 'banked'
-        
+      }
+      gameState.currentTurnScore = 0
+      gameState.isTurnEnding = false
+      gameState.lastAction = 'banked'
+      {
         const playerName = getPlayerName(action.playerId)
         showNotification(`💰 ${playerName} banked ${action.bankedScore} points! Total: ${action.newTotal}`, 'info', 2500)
-        
-        // Play coin bank sound for other players
+      }
+      if (action.playerId !== props.connectionManager.state.peerId) {
         playGameSound('coinBank')
       }
       break
-      
+
     case 'NEXT_PLAYER':
       console.log('Received NEXT_PLAYER action:', action)
-      console.log('Current gameState.currentPlayer:', gameState.currentPlayer)
-      console.log('Action currentPlayer:', action.currentPlayer)
-      console.log('Players array length:', players.value.length)
-      
-      // Always update - remove the condition check that was causing sync issues
+      // Update current player flags
       players.value.forEach((player, index) => {
         player.isCurrentPlayer = index === action.currentPlayer
       })
       gameState.currentPlayer = action.currentPlayer
       gameState.currentRound = action.currentRound
-      gameState.currentTurnScore = 0  // Critical: Reset turn score for new player
+      gameState.currentTurnScore = 0
       gameState.isTurnEnding = false
-      
-      console.log('New current player:', players.value[gameState.currentPlayer])
-      gameState.isPiggedOut = false // Reset pig out indicator
+      gameState.isPiggedOut = false
       gameState.lastAction = 'turn_change'
-      
-      const newCurrentPlayer = players.value[action.currentPlayer]
-      console.log('New current player:', newCurrentPlayer)
-      const currentPlayerName = getPlayerName(newCurrentPlayer?.id)
-      showNotification(`🎯 It's ${currentPlayerName}'s turn!`, 'info', 2500)
+      {
+        const newCurrentPlayer = players.value[action.currentPlayer]
+        const currentPlayerName = getPlayerName(newCurrentPlayer?.id)
+        showNotification(`🎯 It's ${currentPlayerName}'s turn!`, 'info', 2500)
+      }
       break
       
     case 'REQUEST_NEXT_PLAYER':
       // Only host handles this request and broadcasts to everyone
       if (props.isHost) {
+        // Ignore client requests during Final Chance; host controls order
+        if (finalChanceEnabled.value && finalChanceState.active) {
+          console.log('Ignoring REQUEST_NEXT_PLAYER during Final Chance')
+          return
+        }
         console.log('Host received REQUEST_NEXT_PLAYER from:', action.requestingPlayerId)
         console.log('Requested player index:', action.requestedCurrentPlayer)
         
@@ -925,6 +997,17 @@ const handleGameAction = (action) => {
         console.log('Non-host received REQUEST_NEXT_PLAYER - ignoring')
       }
       break
+    
+    case 'FINAL_CHANCE_START':
+      // Activate final chance locally for all players
+      finalChanceState.active = true
+      finalChanceState.leaderId = action.leaderId
+      finalChanceState.leaderScore = action.leaderScore
+      finalChanceState.remaining = action.remaining || []
+      gameState.lastAction = 'final_chance_start'
+      const leaderName = getPlayerName(action.leaderId)
+      showNotification(`⏳ Final Chance! Beat ${leaderName}'s ${action.leaderScore} to win.`, 'warning', 4000)
+      break
       
     case 'REQUEST_HOLD_SCORE':
       // Only host handles this request and broadcasts to everyone
@@ -936,26 +1019,47 @@ const handleGameAction = (action) => {
         if (holdingPlayer) {
           holdingPlayer.score = action.newTotal
           
-          // Check for win condition when any player banks points
+          // Check threshold
           if (holdingPlayer.score >= pointsToWin.value) {
-            gameState.gameEnded = true
-            gameState.winner = holdingPlayer
-            gameState.lastAction = 'won'
-            
-            const playerName = getPlayerName(holdingPlayer.id)
-            showNotification(`🏆 ${playerName} wins with ${holdingPlayer.score} points!`, 'success', 6000)
-            
-            // Play game win sound for host since they process the win
-            playGameSound('gameWin')
-            
-            // Broadcast game end to all players (including the winner)
-            broadcastGameAction({
-              type: 'GAME_END',
-              winner: holdingPlayer,
-              finalScores: players.value.map(p => ({ id: p.id, name: p.name, score: p.score }))
-            })
-            
-            return // Don't continue with normal hold processing
+            if (finalChanceEnabled.value) {
+              // Start Final Chance if not already active
+              if (!finalChanceState.active) {
+                // Broadcast the hold result first
+                broadcastGameAction({
+                  type: 'HOLD_SCORE',
+                  playerId: action.playerId,
+                  playerName: action.playerName,
+                  bankedScore: action.bankedScore,
+                  newTotal: action.newTotal,
+                  players: players.value
+                })
+                // Begin Final Chance and move to next rebuttal
+                startFinalChance(action.playerId)
+                nextPlayer()
+                return
+              }
+              // If already in Final Chance, don't end here; fall through to normal broadcast below
+            } else {
+              // Normal rules: end immediately
+              gameState.gameEnded = true
+              gameState.winner = holdingPlayer
+              gameState.lastAction = 'won'
+              
+              const playerName = getPlayerName(holdingPlayer.id)
+              showNotification(`🏆 ${playerName} wins with ${holdingPlayer.score} points!`, 'success', 6000)
+              
+              // Play game win sound for host since they process the win
+              playGameSound('gameWin')
+              
+              // Broadcast game end to all players (including the winner)
+              broadcastGameAction({
+                type: 'GAME_END',
+                winner: holdingPlayer,
+                finalScores: players.value.map(p => ({ id: p.id, name: p.name, score: p.score }))
+              })
+              
+              return // Don't continue with normal hold processing
+            }
           }
         }
         
@@ -981,6 +1085,12 @@ const handleGameAction = (action) => {
         if (action.playerId !== props.connectionManager.state.peerId) {
           playGameSound('coinBank')
         }
+
+        // If in Final Chance, host advances to next rebuttal immediately
+        if (finalChanceEnabled.value && finalChanceState.active) {
+          nextPlayer()
+          return
+        }
       } else {
         console.log('Non-host received REQUEST_HOLD_SCORE - ignoring')
       }
@@ -990,6 +1100,11 @@ const handleGameAction = (action) => {
       gameState.gameEnded = true
       gameState.winner = action.winner
       gameState.lastAction = 'won'
+  // Ensure Final Chance UI is cleared on all clients
+  finalChanceState.active = false
+  finalChanceState.leaderId = null
+  finalChanceState.leaderScore = 0
+  finalChanceState.remaining = []
       
       const winnerName = getPlayerName(action.winner.id)
       showNotification(`🏆 ${winnerName} wins with ${action.winner.score} points!`, 'success', 5000)
@@ -1033,11 +1148,73 @@ const handleGameAction = (action) => {
       gameState.isPiggedOut = false
       gameState.isProcessingNextPlayer = false
       gameState.isRolling = false
+  finalChanceState.active = false
+  finalChanceState.leaderId = null
+  finalChanceState.leaderScore = 0
+  finalChanceState.remaining = []
+  // Apply settings if included in gameState (future-proof) or keep existing
       
       const startingPlayerName = getPlayerName(players.value[gameState.currentPlayer]?.id)
       showNotification(`🎮 New game started! ${startingPlayerName} goes first!`, 'info', 3000)
       break
   }
+}
+
+// Host-only: start final chance phase
+const startFinalChance = (leaderId) => {
+  if (!props.isHost) return
+  const leader = players.value.find(p => p.id === leaderId)
+  const leaderIndex = players.value.findIndex(p => p.id === leaderId)
+  const remaining = []
+  for (let i = 1; i < players.value.length; i++) {
+    const idx = (leaderIndex + i) % players.value.length
+    const candidate = players.value[idx]
+    if (candidate && candidate.id !== leaderId) remaining.push(candidate.id)
+  }
+  finalChanceState.active = true
+  finalChanceState.leaderId = leaderId
+  finalChanceState.leaderScore = leader?.score || 0
+  finalChanceState.remaining = remaining
+  // Broadcast phase start
+  broadcastGameAction({
+    type: 'FINAL_CHANCE_START',
+    leaderId: finalChanceState.leaderId,
+    leaderScore: finalChanceState.leaderScore,
+    remaining: [...finalChanceState.remaining]
+  })
+}
+
+// Host-only: conclude final chance and declare winner
+const concludeFinalChance = () => {
+  if (!props.isHost) return
+  let topScore = -Infinity
+  let winners = []
+  players.value.forEach(p => {
+    if (p.score > topScore) {
+      topScore = p.score
+      winners = [p]
+    } else if (p.score === topScore) {
+      winners.push(p)
+    }
+  })
+  // Tie-breaker: if leader is tied for top, leader wins; else first in winners
+  let winner = winners.find(w => w.id === finalChanceState.leaderId) || winners[0]
+  gameState.gameEnded = true
+  gameState.winner = winner
+  gameState.lastAction = 'won'
+  showNotification(`🏆 ${winner.name} wins with ${winner.score} points!`, 'success', 6000)
+  // Play win sound on host
+  playGameSound('gameWin')
+  broadcastGameAction({
+    type: 'GAME_END',
+    winner: winner,
+    finalScores: players.value.map(p => ({ id: p.id, name: p.name, score: p.score }))
+  })
+  // Reset final chance state
+  finalChanceState.active = false
+  finalChanceState.leaderId = null
+  finalChanceState.leaderScore = 0
+  finalChanceState.remaining = []
 }
 
 // Handle player disconnection during game
@@ -1114,6 +1291,9 @@ defineExpose({
               <div class="text-sm text-gray-600 dark:text-gray-400 transition-colors duration-300">Race to {{ pointsToWin }} points!</div>
             </div>
           </div>
+        </div>
+  <div v-if="finalChanceEnabled && finalChanceState.active && !gameState.gameEnded" class="px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 transition-colors duration-300 animate-pulse">
+          ⏳ Final Chance
         </div>
         <!-- Hide quit game for now, can be enabled later -->
         <button 
