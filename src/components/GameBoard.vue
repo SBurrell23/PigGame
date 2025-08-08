@@ -49,6 +49,7 @@ const players = ref([])
 const gameStarted = ref(false)
 const nextPlayerTimeout = ref(null) // Track the nextPlayer timeout to clear it if needed
 const gameStartingPlayer = ref(0) // Track which player should start the next game
+const pointsToWin = ref(100)
 
 // Initialize players from connection manager
 onMounted(() => {
@@ -63,6 +64,8 @@ onMounted(() => {
     // First try to use gameData if it has players
     if (props.gameData?.players?.length > 0) {
       console.log('Using gameData players:', props.gameData.players)
+  // Initialize pointsToWin from gameData if provided
+  pointsToWin.value = props.gameData?.settings?.pointsToWin ?? 100
       players.value = props.gameData.players.map((player, index) => ({
         id: player.id,
         name: player.name,
@@ -375,7 +378,7 @@ const bankScore = () => {
     playGameSound('coinBank')
     
     // Check for win condition
-    if (currentPlayer.score >= 100) {
+  if (currentPlayer.score >= pointsToWin.value) {
       gameState.gameEnded = true
       gameState.winner = currentPlayer
       gameState.lastAction = 'won'
@@ -934,7 +937,7 @@ const handleGameAction = (action) => {
           holdingPlayer.score = action.newTotal
           
           // Check for win condition when any player banks points
-          if (holdingPlayer.score >= 100) {
+          if (holdingPlayer.score >= pointsToWin.value) {
             gameState.gameEnded = true
             gameState.winner = holdingPlayer
             gameState.lastAction = 'won'
@@ -1108,7 +1111,7 @@ defineExpose({
             <!-- Mobile: Round and Race on same line, Desktop: stacked -->
             <div class="flex items-baseline space-x-2 sm:block sm:space-x-0">
               <div class="text-lg font-bold text-gray-800 dark:text-gray-200 transition-colors duration-300">Round {{ gameState.currentRound }}</div>
-              <div class="text-sm text-gray-600 dark:text-gray-400 transition-colors duration-300">Race to 100 points!</div>
+              <div class="text-sm text-gray-600 dark:text-gray-400 transition-colors duration-300">Race to {{ pointsToWin }} points!</div>
             </div>
           </div>
         </div>

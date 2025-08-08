@@ -1,6 +1,7 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import Peer from 'peerjs'
+import GameSetup from './GameSetup.vue'
 
 // Props
 const props = defineProps({
@@ -46,6 +47,16 @@ const lobbyMode = ref('join') // 'join' or 'host'
 const allLobbyPlayers = ref([]) // All players in lobby (including host)
 const gameInProgress = ref(false) // Flag to track if game is in progress
 const copyNotification = ref(false) // Flag for copy notification
+const gameSettings = ref({ pointsToWin: 100 }) // Lobby-configurable settings
+
+// Handle settings change from GameSetup (host-controlled)
+const onSettingsChanged = (s) => {
+  emit('button-click-sound')
+  gameSettings.value = { ...gameSettings.value, ...s }
+  if (state.isHost) {
+    broadcast({ type: 'LOBBY_SETTINGS_UPDATE', settings: { ...gameSettings.value } })
+  }
+}
 
 // Utility function to copy text to clipboard
 const copyToClipboard = async (text) => {
@@ -134,7 +145,8 @@ const startGame = () => {
       peerId: player.peerId, // Keep both for compatibility
       name: player.name,
       isHost: player.isHost
-    })),
+  })),
+  settings: { ...gameSettings.value },
     timestamp: Date.now()
   }
   
@@ -301,6 +313,11 @@ const handleConnection = (conn) => {
     if (state.isHost) {
       setTimeout(() => {
         broadcastLobbyUpdate()
+        // Send current lobby settings to all players (including the newly connected one)
+        broadcast({
+          type: 'LOBBY_SETTINGS_UPDATE',
+          settings: { ...gameSettings.value }
+        })
         // Broadcast player join sound to all players (including host)
         broadcast({
           type: 'PLAYER_JOIN_SOUND',
@@ -349,6 +366,13 @@ const handleConnection = (conn) => {
     if (data && data.type === 'LOBBY_UPDATE') {
       console.log('Lobby update received:', data.players)
       allLobbyPlayers.value = data.players
+      return
+    }
+    
+    // Handle lobby settings update
+    if (data && data.type === 'LOBBY_SETTINGS_UPDATE') {
+      console.log('Lobby settings update received:', data.settings)
+      gameSettings.value = { ...gameSettings.value, ...data.settings }
       return
     }
     
@@ -561,6 +585,7 @@ const disconnect = () => {
   joinGameId.value = ''
   lobbyMode.value = 'join'
   allLobbyPlayers.value = []
+  gameSettings.value = { pointsToWin: 100 }
   
   updateConnectedPeers()
 }
@@ -637,7 +662,8 @@ defineExpose({
   // Reactive state access
   state: state,
   connectedPeers: connectedPeers,
-  allLobbyPlayers: allLobbyPlayers
+  allLobbyPlayers: allLobbyPlayers,
+  gameSettings: gameSettings
 })
 </script>
 
@@ -857,6 +883,15 @@ defineExpose({
             </p>
           </div>
         </div>
+      </div>
+
+      <!-- Game Setup Panel (visible to all, editable by host) -->
+      <div class="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-4 transition-colors duration-300">
+        <GameSetup 
+          :settings="gameSettings" 
+          :is-host="state.isHost"
+          @settings-changed="onSettingsChanged"
+        />
       </div>
 
       <!-- Game Controls (if host) -->
