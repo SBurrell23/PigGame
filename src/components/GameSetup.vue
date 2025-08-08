@@ -56,6 +56,12 @@ const pigCraps = computed({
     }
   }
 })
+
+// Slider tick positions for Points to Win labels
+const minPoints = 10
+const maxPoints = 250
+const tickValues = [10, 50, 100, 150, 200, 250]
+const tickLeft = (val) => `${((val - minPoints) / (maxPoints - minPoints)) * 100}%`
 </script>
 
 <template>
@@ -64,25 +70,32 @@ const pigCraps = computed({
       <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 transition-colors duration-300">
         Points to Win: <span class="font-semibold">{{ pointsToWin }}</span>
       </label>
-      <input
-        type="range"
-        min="10"
-        max="250"
-        step="10"
-        v-model.number="pointsToWin"
-        :disabled="locked || !isHost"
-        class="w-full accent-blue-500 disabled:opacity-60 cursor-default hover:cursor-pointer active:cursor-pointer focus:cursor-pointer disabled:cursor-not-allowed"
-      />
-      <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400">
-        <span>10</span>
-        <span>50</span>
-        <span>100</span>
-        <span>150</span>
-        <span>200</span>
-        <span>250</span>
+      <div class="slider-with-labels">
+        <input
+          type="range"
+          min="10"
+          max="250"
+          step="10"
+          v-model.number="pointsToWin"
+          :disabled="locked || !isHost"
+          class="points-slider w-full accent-blue-500 disabled:opacity-60 cursor-default hover:cursor-pointer active:cursor-pointer focus:cursor-pointer disabled:cursor-not-allowed"
+        />
+        <!-- Value-aligned tick labels -->
+        <div class="relative mt-1 mb-3 sm:mb-4 text-xs text-gray-500 dark:text-gray-400 slider-ticks select-none">
+          <div class="relative" style="width: calc(100% - var(--thumb-size)); margin-left: calc(var(--thumb-size) / 2); height: 100%;">
+            <span
+              v-for="val in tickValues"
+              :key="val"
+              class="absolute -translate-x-1/2"
+              :style="{ left: tickLeft(val) }"
+            >
+              {{ val }}
+            </span>
+          </div>
+        </div>
       </div>
 
-  <div class="pt-2 border-t border-gray-200 dark:border-gray-700"></div>
+  <div class="mt-2 sm:mt-3 pt-2 border-t border-gray-200 dark:border-gray-700"></div>
       <div class="flex items-start justify-between gap-3">
         <div>
           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 transition-colors duration-300">
@@ -187,5 +200,23 @@ input[type="range"]::-moz-range-thumb {
 }
 input[type="range"]::-ms-thumb {
   cursor: pointer;
+}
+
+/* Slider label alignment helpers */
+.slider-with-labels {
+  /* Approximate thumb size for common browsers; adjust if custom thumb CSS changes */
+  --thumb-size: 20px;
+}
+.points-slider {
+  width: 100%;
+}
+.slider-ticks span {
+  /* Prevent line breaks and keep ticks tidy */
+  white-space: nowrap;
+}
+
+/* Reserve vertical space for the ticks row */
+.slider-ticks {
+  height: 16px; /* about one line of text; adjust if needed */
 }
 </style>
