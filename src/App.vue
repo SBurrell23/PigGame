@@ -25,6 +25,7 @@ const currentView = ref('lobby') // 'lobby' or 'game'
 const gameData = ref(null)
 const isDisconnecting = ref(false) // Flag to prevent lobby flash during disconnection
 const isGameOver = ref(false) // Tracks in-game over state to unlock setup for host
+const openLobbySettingsOnce = ref(false) // Trigger to open settings accordion when lobby is created/joined
 const lobbySettings = ref({ pointsToWin: 100, finalChance: false, dieSize: 6 })
 
 // Sound controller methods
@@ -62,11 +63,15 @@ const onPeerReady = (event) => {
   console.log('Peer ready:', event)
   // Set the connection manager in our game composable
   setConnectionManager(connectionManager.value)
+  // Open lobby settings once when a lobby is created (host) or peer becomes ready
+  openLobbySettingsOnce.value = true
 }
 
 const onPeerConnected = (event) => {
   console.log('Peer connected:', event)
   // Sound will be handled by broadcast system for all players
+  // Open lobby settings once when a player successfully joins a lobby (non-host connects to host)
+  openLobbySettingsOnce.value = true
 }
 
 const onPeerDisconnected = (event) => {
@@ -149,6 +154,8 @@ const onGameStarted = (data) => {
   gameData.value = data
   currentView.value = 'game'
   isGameOver.value = false
+  // Ensure lobby dropdown won't auto-open when returning to lobby later
+  openLobbySettingsOnce.value = false
   // Lock setup during play
   // (The Game Setup dropdown under GameBoard uses isGameOver to control locking)
 }
@@ -197,6 +204,8 @@ const onLeaveGame = () => {
     // Reset to lobby view (which will show the connection screen since player is disconnected)
     currentView.value = 'lobby'
     gameData.value = null
+  // Do not auto-open lobby settings on return
+  openLobbySettingsOnce.value = false
   }
 }
 
@@ -214,6 +223,8 @@ const onHostDisconnectedDuringGame = () => {
   // Return to lobby view (which will show connection screen since we're disconnected)
   currentView.value = 'lobby'
   gameData.value = null
+  // Do not auto-open settings in this case
+  openLobbySettingsOnce.value = false
   
   // Reset disconnecting flag after a brief delay
   setTimeout(() => {
@@ -226,6 +237,8 @@ const onGameEnded = () => {
   currentView.value = 'lobby'
   gameData.value = null
   isGameOver.value = false
+  // Do not auto-open lobby settings when coming back from a finished game
+  openLobbySettingsOnce.value = false
   
   // Reset game state in connection manager
   if (connectionManager.value && connectionManager.value.resetGameState) {
@@ -360,7 +373,7 @@ onMounted(() => {
               :settings="lobbySettings"
               :is-host="connectionManager?.state?.isHost || false"
               :locked="false"
-              :auto-open="true"
+              :auto-open="openLobbySettingsOnce"
               :game-over="false"
               @settings-changed="onLobbySettingsChanged"
             />

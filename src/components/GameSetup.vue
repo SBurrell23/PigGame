@@ -52,7 +52,7 @@ const dieSize = computed({
       <input
         type="range"
         min="10"
-        max="200"
+        max="250"
         step="10"
         v-model.number="pointsToWin"
         :disabled="locked || !isHost"
@@ -64,6 +64,7 @@ const dieSize = computed({
         <span>100</span>
         <span>150</span>
         <span>200</span>
+        <span>250</span>
       </div>
 
   <div class="pt-2 border-t border-gray-200 dark:border-gray-700"></div>
@@ -110,7 +111,7 @@ const dieSize = computed({
             :disabled="locked || !isHost"
             @click="dieSize = size"
             :class="[
-              'px-3 py-2 text-sm rounded-md border transition-colors select-none disabled:opacity-60 disabled:cursor-not-allowed',
+              'px-3 py-2 text-sm rounded-md border transition-colors select-none disabled:opacity-60 disabled:cursor-not-allowed min-w-[55px]',
               dieSize === size
                 ? 'bg-blue-600 text-white border-blue-600 shadow'
                 : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600'
