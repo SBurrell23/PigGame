@@ -47,7 +47,7 @@ const lobbyMode = ref('join') // 'join' or 'host'
 const allLobbyPlayers = ref([]) // All players in lobby (including host)
 const gameInProgress = ref(false) // Flag to track if game is in progress
 const copyNotification = ref(false) // Flag for copy notification
-const gameSettings = ref({ pointsToWin: 100, finalChance: false }) // Lobby-configurable settings
+const gameSettings = ref({ pointsToWin: 100, finalChance: false, dieSize: 6 }) // Lobby-configurable settings
 
 // Handle settings change from GameSetup (host-controlled)
 const onSettingsChanged = (s) => {
@@ -585,7 +585,7 @@ const disconnect = () => {
   joinGameId.value = ''
   lobbyMode.value = 'join'
   allLobbyPlayers.value = []
-  gameSettings.value = { pointsToWin: 100, finalChance: false }
+  gameSettings.value = { pointsToWin: 100, finalChance: false, dieSize: 6 }
   
   updateConnectedPeers()
 }

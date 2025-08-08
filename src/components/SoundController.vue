@@ -191,20 +191,27 @@ const testSound = () => {
   playSound('test')
 }
 
-// Helper function for dice landed sounds based on roll value
-const playDiceLandedSound = (rollValue) => {
-  if (rollValue >= 2 && rollValue <= 3) {
-    playSound('diceLandedLow')
-  } else if (rollValue == 4) {
-    playSound('diceLandedMedium')
-  } else if (rollValue == 5) {
-    playSound('diceLandedHigh')
-  } else if (rollValue == 6) {
-    playSound('diceLandedMax')
-  } else if (rollValue == 1) {
+// Helper for dice landed sounds based on roll value and die size (supports d2/d4/d6/d8/d10)
+// Consumers can optionally pass { dieSize } in options via window.$soundController.playDiceLandedSound(value, { dieSize })
+const playDiceLandedSound = (rollValue, options = {}) => {
+  const size = Number(options.dieSize) || 6
+
+  // Always treat 2 as min unless dice size is 2 (1 is pig and has its own sound)
+  if (rollValue === 1 && size !== 2) {
     playSound('diceLandedMin')
+    return
   }
-  // No sound for 1 (pig out) or invalid values
+  // Map tiers by normalized position in [0,1]
+  const t = Math.max(0, Math.min(1, (rollValue - 1) / (size - 1)))
+  if (t < 0.35) {
+    playSound('diceLandedLow')
+  } else if (t < 0.65) {
+    playSound('diceLandedMedium')
+  } else if (t < 0.95) {
+    playSound('diceLandedHigh')
+  } else {
+    playSound('diceLandedMax')
+  }
 }
 
 // Core sound loading and playing functionality

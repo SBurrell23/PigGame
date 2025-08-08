@@ -6,11 +6,16 @@ const props = defineProps({
   value: {
     type: Number,
     default: 1,
-    validator: (value) => value >= 1 && value <= 6
+    validator: (value) => value >= 1 && value <= 10
   },
   isRolling: {
     type: Boolean,
     default: false
+  },
+  sides: {
+    type: Number,
+    default: 6,
+    validator: (value) => [2,4,6,8,10].includes(value)
   },
   size: {
     type: String,
@@ -24,7 +29,7 @@ const props = defineProps({
   finalResult: {
     type: Number,
     default: null,
-    validator: (value) => value === null || (value >= 1 && value <= 6)
+    validator: (value) => value === null || (value >= 1 && value <= 10)
   }
 })
 
@@ -68,7 +73,7 @@ const startRollAnimation = () => {
   for (let i = 0; i < totalSteps; i++) {
     let newValue
     do {
-      newValue = Math.floor(Math.random() * 6) + 1
+      newValue = Math.floor(Math.random() * props.sides) + 1
     } while (newValue === lastValue)
     
     intermediateValues.push(newValue)
@@ -128,7 +133,7 @@ watch(() => props.value, (newValue) => {
   }
 })
 
-// Get dot positions for each dice face
+// Get dot positions for each dice face (supports 1..10)
 const getDotPositions = (value) => {
   const positions = []
   
@@ -165,6 +170,44 @@ const getDotPositions = (value) => {
       positions.push({ x: 75, y: 50 }) // Middle-right
       positions.push({ x: 25, y: 75 }) // Bottom-left
       positions.push({ x: 75, y: 75 }) // Bottom-right
+      break
+    case 7:
+      // Six layout plus a center pip
+      positions.push({ x: 25, y: 25 })
+      positions.push({ x: 75, y: 25 })
+      positions.push({ x: 25, y: 50 })
+      positions.push({ x: 75, y: 50 })
+      positions.push({ x: 25, y: 75 })
+      positions.push({ x: 75, y: 75 })
+      positions.push({ x: 50, y: 50 })
+      break
+    case 8:
+      // Add mid-top and mid-bottom to the six layout
+      positions.push({ x: 25, y: 25 })
+      positions.push({ x: 75, y: 25 })
+      positions.push({ x: 25, y: 50 })
+      positions.push({ x: 75, y: 50 })
+      positions.push({ x: 25, y: 75 })
+      positions.push({ x: 75, y: 75 })
+      positions.push({ x: 50, y: 25 })
+      positions.push({ x: 50, y: 75 })
+      break
+    case 9:
+      // 3x3 grid full
+      for (let r = 0; r < 3; r++) {
+        for (let c = 0; c < 3; c++) {
+          positions.push({ x: 25 * (c + 1), y: 25 * (r + 1) })
+        }
+      }
+      break
+    case 10:
+      // 9 grid plus center-right extra
+      for (let r = 0; r < 3; r++) {
+        for (let c = 0; c < 3; c++) {
+          positions.push({ x: 25 * (c + 1), y: 25 * (r + 1) })
+        }
+      }
+      positions.push({ x: 50, y: 12 }) // extra near top center for distinction
       break
   }
   

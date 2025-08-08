@@ -51,6 +51,7 @@ const nextPlayerTimeout = ref(null) // Track the nextPlayer timeout to clear it 
 const gameStartingPlayer = ref(0) // Track which player should start the next game
 const pointsToWin = ref(100)
 const finalChanceEnabled = ref(false)
+const dieSize = ref(6)
 const finalChanceState = reactive({
   active: false,
   leaderId: null,
@@ -72,8 +73,9 @@ onMounted(() => {
     if (props.gameData?.players?.length > 0) {
       console.log('Using gameData players:', props.gameData.players)
       // Initialize settings from gameData if provided
-      pointsToWin.value = props.gameData?.settings?.pointsToWin ?? 100
-      finalChanceEnabled.value = !!(props.gameData?.settings?.finalChance)
+  pointsToWin.value = props.gameData?.settings?.pointsToWin ?? 100
+  finalChanceEnabled.value = !!(props.gameData?.settings?.finalChance)
+  dieSize.value = props.gameData?.settings?.dieSize ?? 6
       players.value = props.gameData.players.map((player, index) => ({
         id: player.id,
         name: player.name,
@@ -154,7 +156,7 @@ onMounted(() => {
         currentPlayer: gameState.currentPlayer,
         currentRound: gameState.currentRound,
   players: players.value,
-  settings: { pointsToWin: pointsToWin.value, finalChance: finalChanceEnabled.value }
+  settings: { pointsToWin: pointsToWin.value, finalChance: finalChanceEnabled.value, dieSize: dieSize.value }
       })
     }
   } else {
@@ -218,7 +220,7 @@ const playDiceLandedSound = (rollValue) => {
   console.log('🎵 DICE LANDED SOUND:', rollValue, 'from player:', props.connectionManager?.state?.peerId)
   try {
     if (window.$soundController && window.$soundController.playDiceLandedSound) {
-      window.$soundController.playDiceLandedSound(rollValue)
+  window.$soundController.playDiceLandedSound(rollValue, { dieSize: dieSize.value })
     }
   } catch (error) {
     console.warn('Failed to play dice landed sound:', rollValue, error)
@@ -588,7 +590,8 @@ const forceSync = () => {
     type: 'GAME_SYNC',
     currentPlayer: gameState.currentPlayer,
     currentRound: gameState.currentRound,
-    players: players.value
+  players: players.value,
+  settings: { pointsToWin: pointsToWin.value, finalChance: finalChanceEnabled.value, dieSize: dieSize.value }
   })
   showNotification('🔄 Forced sync sent to all players', 'info', 2000)
 }
@@ -660,6 +663,7 @@ const handleGameAction = (action) => {
       if (action.settings) {
         pointsToWin.value = action.settings.pointsToWin ?? pointsToWin.value
         finalChanceEnabled.value = !!action.settings.finalChance
+        dieSize.value = action.settings.dieSize ?? dieSize.value
       }
       
       const syncPlayerName = getPlayerName(players.value[action.currentPlayer]?.id)
@@ -778,7 +782,7 @@ const handleGameAction = (action) => {
         console.log('Host received REQUEST_DICE_ROLLING_START from:', action.playerId)
         
         // Host generates the dice result for consistency
-        const diceResult = Math.floor(Math.random() * 6) + 1
+  const diceResult = Math.floor(Math.random() * dieSize.value) + 1
         
         // Broadcast dice rolling start to everyone (including the requester)
         broadcastGameAction({
@@ -836,7 +840,7 @@ const handleGameAction = (action) => {
         // (SUCCESSFUL_ROLL, PIG_OUT, FIRST_ROLL_PROTECTION) to avoid duplicate sounds
         
         // Host processes the dice result logic and broadcasts the outcome
-        const finalDice = action.dice
+  const finalDice = action.dice
         const rollingPlayerName = action.playerName
         
         console.log('Processing dice result:', {
@@ -1388,6 +1392,7 @@ defineExpose({
               :value="gameState.dice"
               :is-rolling="gameState.isRolling"
               :final-result="gameState.dice"
+              :sides="dieSize"
               :disabled="!canRoll"
               size="large"
               @roll="rollDice"
