@@ -19,13 +19,19 @@ const props = defineProps({
   gameData: {
     type: Object,
     default: () => ({ players: [] })
+  },
+  nextSettings: {
+    type: Object,
+    default: null
   }
 })
 
 // Emits
 const emit = defineEmits([
   'leave-game',
-  'game-ended'
+  'game-ended',
+  'game-over',
+  'game-active'
 ])
 
 // Game state
@@ -422,6 +428,8 @@ const bankScore = () => {
         
         // Play game win sound locally - since the winning player won't receive their own broadcast
         playGameSound('gameWin')
+  // Notify parent that game is over so host can adjust next-game settings
+  emit('game-over')
         
         broadcastGameAction({
           type: 'GAME_END',
@@ -597,6 +605,14 @@ const forceSync = () => {
 }
 
 const newGame = () => {
+  try { emit('game-active') } catch (e) {}
+  // Pull latest lobby settings at the moment a new game starts (host only)
+  if (props.isHost) {
+    const s = props.nextSettings || props.connectionManager?.gameSettings?.value || {}
+    pointsToWin.value = s.pointsToWin ?? pointsToWin.value
+    finalChanceEnabled.value = !!s.finalChance
+    dieSize.value = s.dieSize ?? dieSize.value
+  }
   // Rotate starting player for fairness
   gameStartingPlayer.value = (gameStartingPlayer.value + 1) % players.value.length
   
@@ -633,8 +649,13 @@ const newGame = () => {
   broadcastGameAction({
     type: 'NEW_GAME',
     gameState: { ...gameState },
-  players: players.value,
-    startingPlayer: gameStartingPlayer.value
+    players: players.value,
+    startingPlayer: gameStartingPlayer.value,
+    settings: {
+      pointsToWin: pointsToWin.value,
+      finalChance: !!finalChanceEnabled.value,
+      dieSize: dieSize.value
+    }
   })
 }
 
@@ -672,6 +693,37 @@ const handleGameAction = (action) => {
         currentPlayer: gameState.currentPlayer,
         currentPlayerData: players.value[gameState.currentPlayer]
       })
+      break
+      
+    case 'NEW_GAME':
+      // Reset all game state from the broadcast
+      Object.assign(gameState, action.gameState)
+      players.value = action.players
+      
+      // Update starting player tracker if provided
+      if (action.startingPlayer !== undefined) {
+        gameStartingPlayer.value = action.startingPlayer
+      }
+      
+      // Ensure all critical flags are reset for clean state
+      gameState.isTurnEnding = false
+      gameState.isPiggedOut = false
+      gameState.isProcessingNextPlayer = false
+      gameState.isRolling = false
+      finalChanceState.active = false
+      finalChanceState.leaderId = null
+      finalChanceState.leaderScore = 0
+      finalChanceState.remaining = []
+      
+      // Apply settings if included in action
+      if (action.settings) {
+        pointsToWin.value = action.settings.pointsToWin ?? pointsToWin.value
+        finalChanceEnabled.value = !!action.settings.finalChance
+        dieSize.value = action.settings.dieSize ?? dieSize.value
+      }
+      
+      const startingPlayerName2 = getPlayerName(players.value[gameState.currentPlayer]?.id)
+      showNotification(`🎮 New game started! ${startingPlayerName2} goes first!`, 'info', 3000)
       break
       
     case 'SUCCESSFUL_ROLL':
@@ -1104,6 +1156,8 @@ const handleGameAction = (action) => {
       gameState.gameEnded = true
       gameState.winner = action.winner
       gameState.lastAction = 'won'
+  // Inform parent to toggle Game Over UI state
+  try { emit('game-over') } catch (e) {}
   // Ensure Final Chance UI is cleared on all clients
   finalChanceState.active = false
   finalChanceState.leaderId = null
@@ -1209,6 +1263,8 @@ const concludeFinalChance = () => {
   showNotification(`🏆 ${winner.name} wins with ${winner.score} points!`, 'success', 6000)
   // Play win sound on host
   playGameSound('gameWin')
+  // Notify parent that game is over (stay in game view)
+  emit('game-over')
   broadcastGameAction({
     type: 'GAME_END',
     winner: winner,
@@ -1248,8 +1304,10 @@ const handlePlayerDisconnected = (disconnectedPlayerId) => {
       if (players.value.length === 1) {
         gameState.winner = players.value[0]
         showNotification(`🏆 ${players.value[0].name} wins by default!`, 'success', 5000)
+  emit('game-over')
       } else {
         showNotification('Game ended - no players remaining', 'info', 3000)
+  emit('game-over')
       }
     } else {
       // Make sure current player index is valid

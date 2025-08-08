@@ -9,6 +9,10 @@ const props = defineProps({
   isHost: {
     type: Boolean,
     default: false
+  },
+  locked: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -46,7 +50,7 @@ const dieSize = computed({
         ⚙️ Game Setup
       </h4>
       <span class="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
-        {{ isHost ? 'Host controls' : 'View only' }}
+        {{ locked ? 'Locked during game' : (isHost ? 'Host controls' : 'View only') }}
       </span>
     </div>
 
@@ -59,9 +63,8 @@ const dieSize = computed({
         min="10"
         max="200"
         step="10"
-        :value="pointsToWin"
-        @input="(e) => pointsToWin = e.target.value"
-        :disabled="!isHost"
+        v-model.number="pointsToWin"
+        :disabled="locked || !isHost"
         class="w-full accent-blue-500 disabled:opacity-60 cursor-default hover:cursor-pointer active:cursor-pointer focus:cursor-pointer disabled:cursor-not-allowed"
       />
       <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400">
@@ -84,13 +87,13 @@ const dieSize = computed({
         </div>
         <label
           class="inline-flex items-center select-none"
-          :class="isHost ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'"
+          :class="(locked || !isHost) ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'"
         >
           <input
             type="checkbox"
             :checked="finalChance"
             @change="(e) => finalChance = e.target.checked"
-            :disabled="!isHost"
+            :disabled="locked || !isHost"
             class="sr-only peer"
           />
           <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-400 dark:peer-focus:ring-blue-600 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600 relative"></div>
@@ -110,9 +113,10 @@ const dieSize = computed({
         </div>
         <div class="flex flex-wrap gap-2">
           <button
+            type="button"
             v-for="size in [2,4,6,8,10]"
             :key="size"
-            :disabled="!isHost"
+            :disabled="locked || !isHost"
             @click="dieSize = size"
             :class="[
               'px-3 py-2 text-sm rounded-md border transition-colors select-none disabled:opacity-60 disabled:cursor-not-allowed',

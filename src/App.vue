@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import ConnectionManager from './components/ConnectionManager.vue'
 import GameBoard from './components/GameBoard.vue'
 import GameRules from './components/GameRules.vue'
+import GameSetupDropdown from './components/GameSetupDropdown.vue'
 import SoundController from './components/SoundController.vue'
 import DarkModeController from './components/DarkModeController.vue'
 import { useGameConnection } from './composables/useGameConnection.js'
@@ -23,6 +24,8 @@ const darkModeController = ref(null)
 const currentView = ref('lobby') // 'lobby' or 'game'
 const gameData = ref(null)
 const isDisconnecting = ref(false) // Flag to prevent lobby flash during disconnection
+const isGameOver = ref(false) // Tracks in-game over state to unlock setup for host
+const lobbySettings = ref({ pointsToWin: 100, finalChance: false, dieSize: 6 })
 
 // Sound controller methods
 const onSoundControllerReady = (controller) => {
@@ -131,6 +134,10 @@ const onDataReceived = (event) => {
     if (gameBoardRef.value && gameBoardRef.value.handleGameAction) {
       gameBoardRef.value.handleGameAction(event.data.action)
     }
+    // Also flip game-over flag when end is observed over the wire
+    if (event.data.action?.type === 'GAME_END') {
+      isGameOver.value = true
+    }
   }
   
   // Handle other game messages through our composable
@@ -141,6 +148,9 @@ const onGameStarted = (data) => {
   console.log('Game started:', data)
   gameData.value = data
   currentView.value = 'game'
+  isGameOver.value = false
+  // Lock setup during play
+  // (The Game Setup dropdown under GameBoard uses isGameOver to control locking)
 }
 
 const onLeaveGame = () => {
@@ -215,6 +225,7 @@ const onGameEnded = () => {
   console.log('Game ended - returning to lobby')
   currentView.value = 'lobby'
   gameData.value = null
+  isGameOver.value = false
   
   // Reset game state in connection manager
   if (connectionManager.value && connectionManager.value.resetGameState) {
@@ -239,6 +250,32 @@ const onPlayerLeftSound = (event) => {
 const onButtonClickSound = () => {
   console.log('Button click sound')
   playGameSound('buttonClick')
+}
+
+const onGameOver = () => {
+  isGameOver.value = true
+}
+
+const onGameActive = () => {
+  isGameOver.value = false
+}
+
+// Forward settings changes from dropdown to ConnectionManager
+const onLobbySettingsChanged = (settings) => {
+  try {
+    // Only allow host to apply changes; component already disables for non-host
+    if (connectionManager.value?.applyLobbySettingsUpdate) {
+      connectionManager.value.applyLobbySettingsUpdate(settings)
+    }
+    // Update local reactive copy immediately for UI responsiveness
+    lobbySettings.value = { ...lobbySettings.value, ...settings }
+  } catch (e) {
+    console.warn('Failed to apply lobby settings:', e)
+  }
+}
+// Keep local lobbySettings synced with ConnectionManager
+const onLobbySettingsUpdated = (settings) => {
+  lobbySettings.value = { ...lobbySettings.value, ...settings }
 }
 
 onMounted(() => {
@@ -300,6 +337,7 @@ onMounted(() => {
             @player-joined-sound="onPlayerJoinedSound"
             @player-left-sound="onPlayerLeftSound"
             @button-click-sound="onButtonClickSound"
+            @lobby-settings-updated="onLobbySettingsUpdated"
           />
         </div>
         
@@ -315,6 +353,18 @@ onMounted(() => {
         <!-- Lobby View -->
         <div v-else-if="currentView === 'lobby'" class="max-w-5xl mx-auto">
           
+          <!-- Game Setup Dropdown (host-controlled, visible to all) -->
+          <div class="mt-8">
+            <GameSetupDropdown
+              v-if="connectionManager"
+              :settings="lobbySettings"
+              :is-host="connectionManager?.state?.isHost || false"
+              :locked="false"
+              :auto-open="true"
+              @settings-changed="onLobbySettingsChanged"
+            />
+          </div>
+
           <!-- Game Rules Card -->
           <div class="mt-8 mb-10 sm:mb-0">
             <GameRules />
@@ -330,9 +380,23 @@ onMounted(() => {
             :player-name="'Player 1'"
             :is-host="connectionManager?.state?.isHost || false"
             :game-data="gameData"
+            :next-settings="lobbySettings"
             @leave-game="onLeaveGame"
             @game-ended="onGameEnded"
+            @game-over="onGameOver"
+            @game-active="onGameActive"
           />
+          <!-- Game Setup Dropdown (visible during game but locked) -->
+          <div class="mt-8">
+            <GameSetupDropdown
+              v-if="connectionManager"
+              :settings="lobbySettings"
+              :is-host="connectionManager?.state?.isHost || false"
+              :locked="!(connectionManager?.state?.isHost && isGameOver)"
+              :auto-open="isGameOver"
+              @settings-changed="onLobbySettingsChanged"
+            />
+          </div>
           <!-- Game Rules Card -->
           <div class="mt-8 mb-10 sm:mb-0">
             <GameRules />

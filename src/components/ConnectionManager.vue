@@ -25,7 +25,8 @@ const emit = defineEmits([
   'game-started',
   'player-joined-sound',
   'player-left-sound',
-  'button-click-sound'
+  'button-click-sound',
+  'lobby-settings-updated'
 ])
 
 // Reactive state
@@ -56,6 +57,13 @@ const onSettingsChanged = (s) => {
   if (state.isHost) {
     broadcast({ type: 'LOBBY_SETTINGS_UPDATE', settings: { ...gameSettings.value } })
   }
+  // Notify parent (App.vue) to keep its reactive copy in sync
+  emit('lobby-settings-updated', { ...gameSettings.value })
+}
+
+// Exposed method so parent (App.vue) can update settings via dropdown component
+const applyLobbySettingsUpdate = (s) => {
+  onSettingsChanged(s)
 }
 
 // Utility function to copy text to clipboard
@@ -373,6 +381,7 @@ const handleConnection = (conn) => {
     if (data && data.type === 'LOBBY_SETTINGS_UPDATE') {
       console.log('Lobby settings update received:', data.settings)
       gameSettings.value = { ...gameSettings.value, ...data.settings }
+  emit('lobby-settings-updated', { ...gameSettings.value })
       return
     }
     
@@ -663,7 +672,8 @@ defineExpose({
   state: state,
   connectedPeers: connectedPeers,
   allLobbyPlayers: allLobbyPlayers,
-  gameSettings: gameSettings
+  gameSettings: gameSettings,
+  applyLobbySettingsUpdate
 })
 </script>
 
@@ -885,16 +895,7 @@ defineExpose({
         </div>
       </div>
 
-      <!-- Game Setup Panel (visible to all, editable by host) -->
-      <div class="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-4 transition-colors duration-300">
-        <GameSetup 
-          :settings="gameSettings" 
-          :is-host="state.isHost"
-          @settings-changed="onSettingsChanged"
-        />
-      </div>
-
-      <!-- Game Controls (if host) -->
+      <!-- Game Controls (if host) - moved directly below players -->
       <div v-if="state.isHost && connectedPeers.length > 0">
         <button 
           @click="startGame"
