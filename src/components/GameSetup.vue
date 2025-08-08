@@ -41,21 +41,40 @@ const pointsToWin = computed({
       <input
         type="range"
         min="50"
-        max="250"
+        max="200"
         step="10"
         :value="pointsToWin"
         @input="(e) => pointsToWin = e.target.value"
         :disabled="!isHost"
-        class="w-full accent-blue-500 disabled:opacity-60"
+        class="w-full accent-blue-500 disabled:opacity-60 cursor-default hover:cursor-pointer active:cursor-pointer focus:cursor-pointer disabled:cursor-not-allowed"
       />
       <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400">
         <span>50</span>
         <span>100</span>
         <span>150</span>
         <span>200</span>
-        <span>250</span>
       </div>
     </div>
   </div>
   
 </template>
+
+<style scoped>
+/* Make cursor a pointer when interacting with the slider, but not when disabled */
+input[type="range"]:not(:disabled):hover,
+input[type="range"]:not(:disabled):active,
+input[type="range"]:not(:disabled):focus {
+  cursor: pointer;
+}
+
+/* Ensure the slider thumb also shows a pointer across browsers */
+input[type="range"]::-webkit-slider-thumb {
+  cursor: pointer;
+}
+input[type="range"]::-moz-range-thumb {
+  cursor: pointer;
+}
+input[type="range"]::-ms-thumb {
+  cursor: pointer;
+}
+</style>
