@@ -48,12 +48,20 @@ const lobbyMode = ref('join') // 'join' or 'host'
 const allLobbyPlayers = ref([]) // All players in lobby (including host)
 const gameInProgress = ref(false) // Flag to track if game is in progress
 const copyNotification = ref(false) // Flag for copy notification
-const gameSettings = ref({ pointsToWin: 100, finalChance: false, dieSize: 6 }) // Lobby-configurable settings
+const gameSettings = ref({ pointsToWin: 100, finalChance: false, dieSize: 6, pigCraps: false }) // Lobby-configurable settings
 
 // Handle settings change from GameSetup (host-controlled)
 const onSettingsChanged = (s) => {
   emit('button-click-sound')
-  gameSettings.value = { ...gameSettings.value, ...s }
+  // Merge incoming with current
+  const merged = { ...gameSettings.value, ...s }
+  // Host guardrail: Pig Craps cannot work with D2; auto-bump to D6
+  if (state.isHost) {
+    if (merged.pigCraps && merged.dieSize === 2) {
+      merged.dieSize = 6
+    }
+  }
+  gameSettings.value = merged
   if (state.isHost) {
     broadcast({ type: 'LOBBY_SETTINGS_UPDATE', settings: { ...gameSettings.value } })
   }
@@ -594,7 +602,7 @@ const disconnect = () => {
   joinGameId.value = ''
   lobbyMode.value = 'join'
   allLobbyPlayers.value = []
-  gameSettings.value = { pointsToWin: 100, finalChance: false, dieSize: 6 }
+  gameSettings.value = { pointsToWin: 100, finalChance: false, dieSize: 6, pigCraps: false }
   
   updateConnectedPeers()
 }

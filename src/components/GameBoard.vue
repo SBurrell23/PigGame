@@ -41,13 +41,16 @@ const gameState = reactive({
   currentTurnScore: 0,
   gameEnded: false,
   winner: null,
-  dice: 1,
+  dice: 1, // For Pig Craps, this is the sum
+  dice1: 1, // Individual die A (Pig Craps visuals)
+  dice2: 1, // Individual die B (Pig Craps visuals)
   isRolling: false,
   isTurnEnding: false, // Flag to prevent actions during turn transitions (hold/pigout)
   isPiggedOut: false, // Flag to show pig out indicator
   isProcessingNextPlayer: false, // Flag to prevent duplicate nextPlayer calls
   lastAction: null,
-  notification: null
+  notification: null,
+  rollAnimationsRemaining: 0 // Tracks pending dice animations (2 for Pig Craps, 1 otherwise)
 })
 
 // Players array from connection manager
@@ -58,6 +61,7 @@ const gameStartingPlayer = ref(0) // Track which player should start the next ga
 const pointsToWin = ref(100)
 const finalChanceEnabled = ref(false)
 const dieSize = ref(6)
+const pigCraps = ref(false)
 const finalChanceState = reactive({
   active: false,
   leaderId: null,
@@ -82,6 +86,7 @@ onMounted(() => {
   pointsToWin.value = props.gameData?.settings?.pointsToWin ?? 100
   finalChanceEnabled.value = !!(props.gameData?.settings?.finalChance)
   dieSize.value = props.gameData?.settings?.dieSize ?? 6
+  pigCraps.value = !!(props.gameData?.settings?.pigCraps)
       players.value = props.gameData.players.map((player, index) => ({
         id: player.id,
         name: player.name,
@@ -157,12 +162,12 @@ onMounted(() => {
     // Broadcast initial game state to ensure everyone is synchronized
     if (props.isHost) {
       console.log('Broadcasting initial game sync as host')
-      broadcastGameAction({
+    broadcastGameAction({
         type: 'GAME_SYNC',
         currentPlayer: gameState.currentPlayer,
         currentRound: gameState.currentRound,
   players: players.value,
-  settings: { pointsToWin: pointsToWin.value, finalChance: finalChanceEnabled.value, dieSize: dieSize.value }
+  settings: { pointsToWin: pointsToWin.value, finalChance: finalChanceEnabled.value, dieSize: dieSize.value, pigCraps: !!pigCraps.value }
       })
     }
   } else {
@@ -313,15 +318,27 @@ const rollDice = () => {
   // Send rolling start event using host-relay pattern
   if (props.isHost) {
     // Host generates the dice result immediately
-  const diceResult = Math.floor(Math.random() * dieSize.value) + 1
+    const rollOnce = () => Math.floor(Math.random() * dieSize.value) + 1
+    let diceResult
+    if (pigCraps.value) {
+      const a = rollOnce()
+      const b = rollOnce()
+      gameState.dice1 = a
+      gameState.dice2 = b
+      diceResult = a + b
+    } else {
+      diceResult = rollOnce()
+    }
     gameState.dice = diceResult
     gameState.isRolling = true
+    gameState.rollAnimationsRemaining = pigCraps.value ? 2 : 1
     
     broadcastGameAction({
       type: 'DICE_ROLLING_START',
       playerId: props.connectionManager.state.peerId,
       playerName: playerName,
-      diceResult: diceResult
+  diceResult: diceResult,
+  ...(pigCraps.value ? { dice1: gameState.dice1, dice2: gameState.dice2 } : {})
     })
   } else {
     // Non-host requests host to generate and broadcast the result
@@ -342,25 +359,35 @@ const rollDice = () => {
 
 // Handle dice result from the dice component
 const handleDiceResult = (finalDice) => {
+  // When Pig Craps is enabled, wait for both dice animations to complete
+  if (gameState.rollAnimationsRemaining > 0) {
+    gameState.rollAnimationsRemaining -= 1
+  }
+
+  const allAnimationsDone = gameState.rollAnimationsRemaining <= 0
+  if (!allAnimationsDone) {
+    return
+  }
+
+  // All animations complete: finalize roll
   gameState.isRolling = false
-  
-  // Play dice landed sound for local player only
-  playDiceLandedSound(finalDice)
-  
+
+  // Play dice landed sound once (use sum for Pig Craps)
+  const landedValue = pigCraps.value ? gameState.dice : finalDice
+  playDiceLandedSound(landedValue)
+
   const playerName = getPlayerName(props.connectionManager.state.peerId)
-  
+
+  const finalToSend = pigCraps.value ? gameState.dice : finalDice
+
   // Broadcast dice result to other players
   if (props.isHost) {
-    // Host processes its own dice result through the centralized logic
-    // Don't broadcast DICE_ROLLING_END here to avoid duplicate processing
+    // Host processes its own dice result through centralized logic
     const action = {
       playerId: props.connectionManager.state.peerId,
       playerName: playerName,
-      dice: finalDice
+      dice: finalToSend
     }
-    
-    // Process the host's own dice result through the same centralized logic
-    // as non-host players to avoid duplicate processing
     handleGameAction({ type: 'REQUEST_DICE_ROLLING_END', ...action })
   } else {
     // Non-host requests host to broadcast
@@ -368,12 +395,9 @@ const handleDiceResult = (finalDice) => {
       type: 'REQUEST_DICE_ROLLING_END',
       playerId: props.connectionManager.state.peerId,
       playerName: playerName,
-      dice: finalDice
+      dice: finalToSend
     })
   }
-  
-  // Remove the old host-specific dice processing logic since it's now
-  // handled centrally in the REQUEST_DICE_ROLLING_END case
 }
 
 const bankScore = () => {
@@ -599,7 +623,7 @@ const forceSync = () => {
     currentPlayer: gameState.currentPlayer,
     currentRound: gameState.currentRound,
   players: players.value,
-  settings: { pointsToWin: pointsToWin.value, finalChance: finalChanceEnabled.value, dieSize: dieSize.value }
+  settings: { pointsToWin: pointsToWin.value, finalChance: finalChanceEnabled.value, dieSize: dieSize.value, pigCraps: !!pigCraps.value }
   })
   showNotification('🔄 Forced sync sent to all players', 'info', 2000)
 }
@@ -612,6 +636,7 @@ const newGame = () => {
     pointsToWin.value = s.pointsToWin ?? pointsToWin.value
     finalChanceEnabled.value = !!s.finalChance
     dieSize.value = s.dieSize ?? dieSize.value
+  pigCraps.value = !!s.pigCraps
   }
   // Rotate starting player for fairness
   gameStartingPlayer.value = (gameStartingPlayer.value + 1) % players.value.length
@@ -623,6 +648,8 @@ const newGame = () => {
   gameState.gameEnded = false
   gameState.winner = null
   gameState.dice = 1
+  gameState.dice1 = 1
+  gameState.dice2 = 1
   gameState.isRolling = false
   gameState.isTurnEnding = false  // Critical: Reset turn ending flag
   gameState.isPiggedOut = false   // Critical: Reset pig out flag
@@ -654,7 +681,8 @@ const newGame = () => {
     settings: {
       pointsToWin: pointsToWin.value,
       finalChance: !!finalChanceEnabled.value,
-      dieSize: dieSize.value
+  dieSize: dieSize.value,
+  pigCraps: !!pigCraps.value
     }
   })
 }
@@ -684,7 +712,8 @@ const handleGameAction = (action) => {
       if (action.settings) {
         pointsToWin.value = action.settings.pointsToWin ?? pointsToWin.value
         finalChanceEnabled.value = !!action.settings.finalChance
-        dieSize.value = action.settings.dieSize ?? dieSize.value
+  dieSize.value = action.settings.dieSize ?? dieSize.value
+  pigCraps.value = !!action.settings.pigCraps
       }
       
       const syncPlayerName = getPlayerName(players.value[action.currentPlayer]?.id)
@@ -719,7 +748,8 @@ const handleGameAction = (action) => {
       if (action.settings) {
         pointsToWin.value = action.settings.pointsToWin ?? pointsToWin.value
         finalChanceEnabled.value = !!action.settings.finalChance
-        dieSize.value = action.settings.dieSize ?? dieSize.value
+  dieSize.value = action.settings.dieSize ?? dieSize.value
+  pigCraps.value = !!action.settings.pigCraps
       }
       
       const startingPlayerName2 = getPlayerName(players.value[gameState.currentPlayer]?.id)
@@ -810,6 +840,14 @@ const handleGameAction = (action) => {
       // All players (including the rolling player) receive this from the host
       gameState.isRolling = true
       gameState.dice = action.diceResult
+      if (pigCraps.value) {
+        // Use provided individual dice for animation targets
+        gameState.dice1 = action.dice1 ?? gameState.dice1
+        gameState.dice2 = action.dice2 ?? gameState.dice2
+        gameState.rollAnimationsRemaining = 2
+      } else {
+        gameState.rollAnimationsRemaining = 1
+      }
       gameState.lastAction = 'rolling'
       
       const playerName = getPlayerName(action.playerId)
@@ -831,24 +869,36 @@ const handleGameAction = (action) => {
       break
       
     case 'REQUEST_DICE_ROLLING_START':
-      // Only host handles this request and broadcasts to everyone
+  // Only host handles this request and broadcasts to everyone
       if (props.isHost) {
         console.log('Host received REQUEST_DICE_ROLLING_START from:', action.playerId)
         
-        // Host generates the dice result for consistency
-  const diceResult = Math.floor(Math.random() * dieSize.value) + 1
+  // Host generates the dice result for consistency
+  const rollOnce = () => Math.floor(Math.random() * dieSize.value) + 1
+  let diceResult
+  if (pigCraps.value) {
+    const a = rollOnce()
+    const b = rollOnce()
+    gameState.dice1 = a
+    gameState.dice2 = b
+    diceResult = a + b
+  } else {
+    diceResult = rollOnce()
+  }
         
         // Broadcast dice rolling start to everyone (including the requester)
         broadcastGameAction({
           type: 'DICE_ROLLING_START',
           playerId: action.playerId,
           playerName: action.playerName,
-          diceResult: diceResult
+          diceResult: diceResult,
+          ...(pigCraps.value ? { dice1: gameState.dice1, dice2: gameState.dice2 } : {})
         })
         
         // Update host's local state
         gameState.isRolling = true
         gameState.dice = diceResult
+        gameState.rollAnimationsRemaining = pigCraps.value ? 2 : 1
         gameState.lastAction = 'rolling'
         
         showNotification(`🎲 ${action.playerName} is rolling... (via host)`, 'info', 1500)
@@ -903,17 +953,23 @@ const handleGameAction = (action) => {
           playerId: action.playerId
         })
         
-        if (finalDice === 1) {
+  const pigOutNow = pigCraps.value ? (finalDice === 7) : (finalDice === 1)
+        if (pigOutNow) {
           // Check if this is the first roll of the turn (no points accumulated yet)
           if (gameState.currentTurnScore === 0) {
             // First roll protection - just roll again, no pig out
-            showNotification(`🎲 ${rollingPlayerName} rolled a 1 on first roll - roll again! (No pig out)`, 'info', 3000)
+            if (pigCraps.value) {
+              showNotification(`🎲 ${rollingPlayerName} rolled ${gameState.dice1} + ${gameState.dice2} = 7 on first roll - roll again! (No pig out)`, 'info', 3000)
+            } else {
+              showNotification(`🎲 ${rollingPlayerName} rolled a 1 on first roll - roll again! (No pig out)`, 'info', 3000)
+            }
             
             broadcastGameAction({
               type: 'FIRST_ROLL_PROTECTION',
               playerId: action.playerId,
               playerName: action.playerName,
-              dice: finalDice
+              dice: finalDice,
+              ...(pigCraps.value ? { dice1: gameState.dice1, dice2: gameState.dice2 } : {})
             })
             
             gameState.lastAction = 'first_roll_protection'
@@ -924,7 +980,7 @@ const handleGameAction = (action) => {
             gameState.currentTurnScore = 0
             gameState.lastAction = 'pigout'
             
-            showNotification(`💥 ${rollingPlayerName} rolled a 1! Pig out! Turn lost!`, 'error', 4000)
+            showNotification(pigCraps.value ? `💥 ${rollingPlayerName} rolled ${gameState.dice1} + ${gameState.dice2} = 7! Pig out! Turn lost!` : `💥 ${rollingPlayerName} rolled a 1! Pig out! Turn lost!`, 'error', 4000)
             
             // Play pig out sound for host
             playGameSound('pigOut')
@@ -933,7 +989,8 @@ const handleGameAction = (action) => {
               type: 'PIG_OUT',
               playerId: action.playerId,
               playerName: action.playerName,
-              dice: finalDice
+              dice: finalDice,
+              ...(pigCraps.value ? { dice1: gameState.dice1, dice2: gameState.dice2 } : {})
             })
             
             // Host handles nextPlayer after delay for pig out
@@ -954,14 +1011,19 @@ const handleGameAction = (action) => {
             newScore: newTurnScore
           })
           
-          showNotification(`🎲 ${rollingPlayerName} rolled a ${finalDice}! Turn score: ${newTurnScore}`, 'success', 3000)
+          if (pigCraps.value) {
+            showNotification(`🎲 ${rollingPlayerName} rolled ${gameState.dice1} + ${gameState.dice2} = ${finalDice}! Turn score: ${newTurnScore}`, 'success', 3000)
+          } else {
+            showNotification(`🎲 ${rollingPlayerName} rolled a ${finalDice}! Turn score: ${newTurnScore}`, 'success', 3000)
+          }
           
           broadcastGameAction({
             type: 'SUCCESSFUL_ROLL',
             playerId: action.playerId,
             playerName: action.playerName,
             dice: finalDice,
-            turnScore: newTurnScore
+            turnScore: newTurnScore,
+            ...(pigCraps.value ? { dice1: gameState.dice1, dice2: gameState.dice2 } : {})
           })
         }
       } else {
@@ -970,14 +1032,18 @@ const handleGameAction = (action) => {
       break
       
     case 'DICE_ROLL':
+      // Legacy/simple roll update path
       gameState.dice = action.dice
-      gameState.currentTurnScore = action.gameState.currentTurnScore
-      if (action.dice === 1) {
+      if (pigCraps.value) {
+        if (action.dice1 != null) gameState.dice1 = action.dice1
+        if (action.dice2 != null) gameState.dice2 = action.dice2
+      }
+      gameState.currentTurnScore = action.gameState?.currentTurnScore ?? gameState.currentTurnScore
+      if ((!pigCraps.value && action.dice === 1) || (pigCraps.value && action.dice === 7)) {
         gameState.currentTurnScore = 0
         // The rolling player will handle nextPlayer()
       }
       break
-      
     case 'HOLD_SCORE':
       // Update the holding player's total (for others; local already updated at source)
       if (action.playerId !== props.connectionManager.state.peerId) {
@@ -1446,26 +1512,50 @@ defineExpose({
       <!-- Dice and Actions Area -->
       <div class="mb-4">
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-600 p-8 text-center transition-colors duration-300">
-          <!-- Dice Component -->
+          <!-- Dice Component(s) -->
           <div class="">
-            <Dice 
-              :value="gameState.dice"
-              :is-rolling="gameState.isRolling"
-              :final-result="gameState.dice"
-              :sides="dieSize"
-              :disabled="!canRoll"
-              size="large"
-              @roll="rollDice"
-              @result="handleDiceResult"
-            />
+            <div v-if="pigCraps" class="dice-pair flex items-center justify-center gap-4">
+              <Dice 
+                :value="gameState.dice1"
+                :is-rolling="gameState.isRolling"
+                :final-result="gameState.dice1"
+                :sides="dieSize"
+                :disabled="!canRoll"
+                size="large"
+                @roll="rollDice"
+                @result="handleDiceResult"
+              />
+              <Dice 
+                :value="gameState.dice2"
+                :is-rolling="gameState.isRolling"
+                :final-result="gameState.dice2"
+                :sides="dieSize"
+                :disabled="!canRoll"
+                size="large"
+                @roll="rollDice"
+                @result="handleDiceResult"
+              />
+            </div>
+            <div v-else>
+              <Dice 
+                :value="gameState.dice"
+                :is-rolling="gameState.isRolling"
+                :final-result="gameState.dice"
+                :sides="dieSize"
+                :disabled="!canRoll"
+                size="large"
+                @roll="rollDice"
+                @result="handleDiceResult"
+              />
+            </div>
           </div>
           
           <!-- Action Buttons -->
-          <div class="flex flex-col sm:flex-row gap-4 justify-center items-center mt-6" v-if="!gameState.gameEnded && isMyTurn">
+      <div class="flex flex-col sm:flex-row gap-4 items-stretch mt-6 sm:w-full sm:max-w-md mx-auto" v-if="!gameState.gameEnded && isMyTurn">
             <button 
               @click="rollDice"
               :disabled="!canRoll"
-              class="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-green-500 to-green-600 text-white font-bold text-lg rounded-xl hover:from-green-600 hover:to-green-700 disabled:from-gray-300 disabled:to-gray-400 disabled:text-gray-200 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:transform-none disabled:shadow-md disabled:hover:from-gray-300 disabled:hover:to-gray-400 disabled:hover:shadow-md disabled:hover:scale-100"
+        class="w-full sm:flex-1 px-8 py-4 bg-gradient-to-r from-green-500 to-green-600 text-white font-bold text-lg rounded-xl hover:from-green-600 hover:to-green-700 disabled:from-gray-300 disabled:to-gray-400 disabled:text-gray-200 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:transform-none disabled:shadow-md disabled:hover:from-gray-300 disabled:hover:to-gray-400 disabled:hover:shadow-md disabled:hover:scale-100"
             >
               {{ gameState.isRolling ? '🎲 Rolling...' : '🎲 Roll Dice' }}
             </button>
@@ -1473,7 +1563,7 @@ defineExpose({
             <button 
               @click="bankScore"
               :disabled="!canHold"
-              class="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-yellow-500 to-yellow-600 text-white font-bold text-lg rounded-xl hover:from-yellow-600 hover:to-yellow-700 disabled:from-gray-300 disabled:to-gray-400 disabled:text-gray-200 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:transform-none disabled:shadow-md disabled:hover:from-gray-300 disabled:hover:to-gray-400 disabled:hover:shadow-md disabled:hover:scale-100"
+        class="w-full sm:flex-1 px-8 py-4 bg-gradient-to-r from-yellow-500 to-yellow-600 text-white font-bold text-lg rounded-xl hover:from-yellow-600 hover:to-yellow-700 disabled:from-gray-300 disabled:to-gray-400 disabled:text-gray-200 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:transform-none disabled:shadow-md disabled:hover:from-gray-300 disabled:hover:to-gray-400 disabled:hover:shadow-md disabled:hover:scale-100"
             >
               💰 Bank Points
             </button>
@@ -1693,6 +1783,20 @@ defineExpose({
   }
   75% {
     transform: scale(0.98);
+  }
+}
+</style>
+<style scoped>
+/* Keep Pig Craps dice centered and close together */
+.dice-pair :deep(.dice-container) {
+  margin: 0; /* override auto margins inside Dice.vue */
+}
+.dice-pair {
+  gap: 1rem; /* ~16px; a bit more space while staying close */
+}
+@media (min-width: 1024px) {
+  .dice-pair {
+    gap: 1rem; /* cap gap on large screens */
   }
 }
 </style>

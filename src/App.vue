@@ -26,7 +26,7 @@ const gameData = ref(null)
 const isDisconnecting = ref(false) // Flag to prevent lobby flash during disconnection
 const isGameOver = ref(false) // Tracks in-game over state to unlock setup for host
 const openLobbySettingsOnce = ref(false) // Trigger to open settings accordion when lobby is created/joined
-const lobbySettings = ref({ pointsToWin: 100, finalChance: false, dieSize: 6 })
+const lobbySettings = ref({ pointsToWin: 100, finalChance: false, dieSize: 6, pigCraps: false })
 
 // Sound controller methods
 const onSoundControllerReady = (controller) => {
