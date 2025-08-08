@@ -50,6 +50,15 @@ const sizeMapping = {
 // Computed dice size
 const diceSize = computed(() => sizeMapping[props.size])
 
+// Slightly reduce pip size for higher-sided dice to prevent crowding
+const pipSizePx = computed(() => {
+  let size = diceSize.value.pipSize
+  if (props.sides > 6) {
+    size = Math.round(size * 0.85)
+  }
+  return size
+})
+
 // Roll animation that displays random faces then shows the predetermined result
 const startRollAnimation = () => {
   if (isAnimating.value) return
@@ -201,13 +210,20 @@ const getDotPositions = (value) => {
       }
       break
     case 10:
-      // 9 grid plus center-right extra
-      for (let r = 0; r < 3; r++) {
-        for (let c = 0; c < 3; c++) {
-          positions.push({ x: 25 * (c + 1), y: 25 * (r + 1) })
-        }
-      }
-      positions.push({ x: 50, y: 12 }) // extra near top center for distinction
+  // 3-4-3 columns layout
+  // Left column (x=25): 3 pips
+  positions.push({ x: 25, y: 25 })
+  positions.push({ x: 25, y: 50 })
+  positions.push({ x: 25, y: 75 })
+  // Center column (x=50): 4 pips (staggered to avoid row alignment)
+  positions.push({ x: 50, y: 15 })
+  positions.push({ x: 50, y: 37.5 })
+  positions.push({ x: 50, y: 62.5 })
+  positions.push({ x: 50, y: 85 })
+  // Right column (x=75): 3 pips
+  positions.push({ x: 75, y: 25 })
+  positions.push({ x: 75, y: 50 })
+  positions.push({ x: 75, y: 75 })
       break
   }
   
@@ -253,8 +269,8 @@ const getDotPositions = (value) => {
         :style="{
           left: pip.x + '%',
           top: pip.y + '%',
-          width: diceSize.pipSize + 'px',
-          height: diceSize.pipSize + 'px'
+          width: pipSizePx + 'px',
+          height: pipSizePx + 'px'
         }"
       />
     </div>
