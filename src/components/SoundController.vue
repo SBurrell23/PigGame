@@ -192,22 +192,46 @@ const testSound = () => {
 }
 
 // Helper for dice landed sounds based on roll value and die size (supports d2/d4/d6/d8/d10)
-// Consumers can optionally pass { dieSize } in options via window.$soundController.playDiceLandedSound(value, { dieSize })
+// Consumers can optionally pass { dieSize, pigCraps } in options via window.$soundController.playDiceLandedSound(value, { dieSize, pigCraps })
 const playDiceLandedSound = (rollValue, options = {}) => {
   const size = Number(options.dieSize) || 6
+  const pigCraps = !!options.pigCraps
 
-  // Always treat 2 as min unless dice size is 2 (1 is pig and has its own sound)
-  if (rollValue === 1 && size !== 2) {
+  // In Pig Craps, a sum of 7 is a pig-out trigger min
+  if (pigCraps && rollValue === 7){
+    playSound('diceLandedMin')
+    return;
+  }
+
+  // Unified normalization range
+  const minVal = pigCraps ? 2 : 1
+  const maxVal = pigCraps ? 2 * size : size
+
+  // Edge/min handling
+  // - Pig Craps: explicit min ping on sum == 2
+  // - Single die: min ping on 1 except when using a D2 (to avoid overly frequent thuds)
+  if (pigCraps) {
+    if (rollValue <= minVal) {
+      playSound('diceLandedMin')
+      return
+    }
+  } else if (rollValue === 1 && size !== 2) {
     playSound('diceLandedMin')
     return
+  } else if(size === 2 && rollValue === 1){
+    playSound('diceLandedMin')
+    return;
   }
-  // Map tiers by normalized position in [0,1]
-  const t = Math.max(0, Math.min(1, (rollValue - 1) / (size - 1)))
-  if (t < 0.35) {
+
+  // Continuous tiers over normalized [0,1]
+  const denom = Math.max(1, maxVal - minVal)
+  const t = Math.max(0, Math.min(1, (rollValue - minVal) / denom))
+
+  if (t < 0.30) {
     playSound('diceLandedLow')
-  } else if (t < 0.65) {
+  } else if (t < 0.60) {
     playSound('diceLandedMedium')
-  } else if (t < 0.95) {
+  } else if (t < 0.87) {
     playSound('diceLandedHigh')
   } else {
     playSound('diceLandedMax')

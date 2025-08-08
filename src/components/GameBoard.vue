@@ -231,7 +231,7 @@ const playDiceLandedSound = (rollValue) => {
   console.log('🎵 DICE LANDED SOUND:', rollValue, 'from player:', props.connectionManager?.state?.peerId)
   try {
     if (window.$soundController && window.$soundController.playDiceLandedSound) {
-  window.$soundController.playDiceLandedSound(rollValue, { dieSize: dieSize.value })
+  window.$soundController.playDiceLandedSound(rollValue, { dieSize: dieSize.value, pigCraps: !!pigCraps.value })
     }
   } catch (error) {
     console.warn('Failed to play dice landed sound:', rollValue, error)
