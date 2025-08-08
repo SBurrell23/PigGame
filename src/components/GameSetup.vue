@@ -44,17 +44,8 @@ const dieSize = computed({
 </script>
 
 <template>
-  <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg p-4 transition-colors duration-300">
-    <div class="flex items-center justify-between mb-3">
-      <h4 class="text-md font-semibold text-gray-900 dark:text-gray-100 transition-colors duration-300">
-        ⚙️ Game Setup
-      </h4>
-      <span class="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
-        {{ locked ? 'Locked during game' : (isHost ? 'Host controls' : 'View only') }}
-      </span>
-    </div>
-
-  <div class="space-y-4">
+  <div>
+    <div class="space-y-4">
       <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 transition-colors duration-300">
         Points to Win: <span class="font-semibold">{{ pointsToWin }}</span>
       </label>
@@ -75,7 +66,7 @@ const dieSize = computed({
         <span>200</span>
       </div>
 
-      <div class="pt-2 border-t border-gray-200 dark:border-gray-700"></div>
+  <div class="pt-2 border-t border-gray-200 dark:border-gray-700"></div>
       <div class="flex items-start justify-between gap-3">
         <div>
           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 transition-colors duration-300">
@@ -101,7 +92,7 @@ const dieSize = computed({
       </div>
 
       <!-- Page break -->
-      <div class="pt-2 border-t border-gray-200 dark:border-gray-700"></div>
+  <div class="pt-2 border-t border-gray-200 dark:border-gray-700"></div>
 
       <!-- Die Size Selector (distinct visual from slider) -->
       <div class="flex items-start justify-between gap-3">

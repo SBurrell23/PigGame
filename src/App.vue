@@ -361,6 +361,7 @@ onMounted(() => {
               :is-host="connectionManager?.state?.isHost || false"
               :locked="false"
               :auto-open="true"
+              :game-over="false"
               @settings-changed="onLobbySettingsChanged"
             />
           </div>
@@ -394,6 +395,7 @@ onMounted(() => {
               :is-host="connectionManager?.state?.isHost || false"
               :locked="!(connectionManager?.state?.isHost && isGameOver)"
               :auto-open="isGameOver"
+              :game-over="isGameOver"
               @settings-changed="onLobbySettingsChanged"
             />
           </div>

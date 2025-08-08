@@ -313,7 +313,7 @@ const rollDice = () => {
   // Send rolling start event using host-relay pattern
   if (props.isHost) {
     // Host generates the dice result immediately
-    const diceResult = Math.floor(Math.random() * 6) + 1
+  const diceResult = Math.floor(Math.random() * dieSize.value) + 1
     gameState.dice = diceResult
     gameState.isRolling = true
     
@@ -724,6 +724,8 @@ const handleGameAction = (action) => {
       
       const startingPlayerName2 = getPlayerName(players.value[gameState.currentPlayer]?.id)
       showNotification(`🎮 New game started! ${startingPlayerName2} goes first!`, 'info', 3000)
+  // Inform parent (App.vue) that the game is now active again so it can re-lock settings for non-hosts
+  try { emit('game-active') } catch (e) {}
       break
       
     case 'SUCCESSFUL_ROLL':
@@ -1488,12 +1490,12 @@ defineExpose({
               </p>
             </div>
 
-            <div v-if="isHost" class="flex justify-center">
+            <div v-if="isHost" class="flex">
               <button 
                 @click="newGame"
-                class="px-8 py-4 bg-gradient-to-r from-purple-500 to-indigo-500 text-white font-bold text-lg rounded-xl hover:from-purple-600 hover:to-indigo-600 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
+                class="w-full px-8 py-4 bg-gradient-to-r from-purple-500 to-indigo-500 text-white font-bold text-lg rounded-xl hover:from-purple-600 hover:to-indigo-600 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
               >
-                🎮 New Game
+                🚀 New Game
               </button>
             </div>
           </div>
